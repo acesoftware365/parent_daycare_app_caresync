@@ -5,10 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.1.9+11';
+const _appVersion = '1.1.10+12';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1534,11 +1535,22 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _rememberKey = 'remember_login';
+  static const _savedEmailKey = 'saved_login_email';
+  static const _savedPasswordKey = 'saved_login_password';
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _rememberLogin = true;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSavedCredentials();
+  }
 
   @override
   void dispose() {
@@ -1560,6 +1572,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      await _persistCredentials();
     } on FirebaseAuthException catch (e) {
       setState(() {
         _error = _messageForCode(e.code);
@@ -1574,6 +1587,33 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _restoreSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remembered = prefs.getBool(_rememberKey) ?? true;
+    final savedEmail = prefs.getString(_savedEmailKey) ?? '';
+    final savedPassword = prefs.getString(_savedPasswordKey) ?? '';
+    if (!mounted) return;
+    setState(() {
+      _rememberLogin = remembered;
+      if (remembered) {
+        _emailController.text = savedEmail;
+        _passwordController.text = savedPassword;
+      }
+    });
+  }
+
+  Future<void> _persistCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberKey, _rememberLogin);
+    if (_rememberLogin) {
+      await prefs.setString(_savedEmailKey, _emailController.text.trim());
+      await prefs.setString(_savedPasswordKey, _passwordController.text);
+    } else {
+      await prefs.remove(_savedEmailKey);
+      await prefs.remove(_savedPasswordKey);
     }
   }
 
@@ -1647,6 +1687,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           return 'Password is required';
                         }
                         return null;
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    CheckboxListTile(
+                      value: _rememberLogin,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Remember login'),
+                      onChanged: (value) {
+                        setState(() => _rememberLogin = value ?? false);
                       },
                     ),
                     if (_error != null) ...[
