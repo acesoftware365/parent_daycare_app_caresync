@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.2+15';
+const _appVersion = '1.2.3+16';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1564,113 +1564,219 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Daycare Parent Login')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Card(
-            margin: const EdgeInsets.all(20),
-            child: Padding(
-              padding: const EdgeInsets.all(22),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
               child: Form(
                 key: _formKey,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      _isRegisterMode
-                          ? 'Create Parent Account'
-                          : 'Welcome Back',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _isRegisterMode
-                          ? 'Register with email + password'
-                          : 'Login with email + password',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 18),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        final input = (value ?? '').trim();
-                        if (input.isEmpty) return 'Email is required';
-                        if (!input.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if ((value ?? '').isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (_isRegisterMode && (value ?? '').length < 6) {
-                          return 'Use at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: CheckboxListTile(
-                            value: _rememberLogin,
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: const Text('Remember login'),
-                            onChanged: (value) {
-                              setState(() => _rememberLogin = value ?? false);
-                            },
-                          ),
+                    const SizedBox(height: 14),
+                    Center(
+                      child: Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCFEEDD),
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                        if (!_isRegisterMode)
-                          TextButton(
-                            onPressed: _isLoading ? null : _forgotPassword,
-                            child: const Text('Forgot password?'),
-                          ),
-                      ],
+                        child: const Center(
+                          child: Text('🏫', style: TextStyle(fontSize: 36)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Sunshine Kids',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'New parents: contact daycare to receive an invite.',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                      'Parent Login',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 26, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 18),
+                    _authFieldCard(
+                      label: 'EMAIL',
+                      child: TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(fontSize: 22),
+                        decoration: InputDecoration(
+                          hintText: 'parent@email.com',
+                          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                          filled: true,
+                          fillColor: const Color(0xFFF2F5F8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDDE4EC),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDDE4EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF2F9965),
+                              width: 1.6,
+                            ),
+                          ),
+                        ),
+                        validator: (value) {
+                          final input = (value ?? '').trim();
+                          if (input.isEmpty) return 'Email is required';
+                          if (!input.contains('@')) {
+                            return 'Enter a valid email';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _authFieldCard(
+                      label: 'PASSWORD',
+                      child: TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        style: const TextStyle(fontSize: 22),
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                          filled: true,
+                          fillColor: const Color(0xFFF2F5F8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDDE4EC),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDDE4EC),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF2F9965),
+                              width: 1.6,
+                            ),
+                          ),
+                        ),
+                        validator: (value) {
+                          if ((value ?? '').isEmpty) {
+                            return 'Password is required';
+                          }
+                          if (_isRegisterMode && (value ?? '').length < 6) {
+                            return 'Use at least 6 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Checkbox(
+                          value: _rememberLogin,
+                          onChanged: (value) {
+                            setState(() => _rememberLogin = value ?? false);
+                          },
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        const Text(
+                          'Remember login',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
                     ),
                     if (_error != null) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       Text(
                         _error!,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.error,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 6),
                     FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2F9965),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
                       onPressed: _isLoading ? null : _submitAuth,
                       child: _isLoading
                           ? const SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 20,
+                              height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Text(_isRegisterMode ? 'Register' : 'Login'),
+                          : Text(
+                              _isRegisterMode ? 'Register' : 'Login',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (!_isRegisterMode)
+                      TextButton(
+                        onPressed: _isLoading ? null : _forgotPassword,
+                        child: const Text(
+                          'Forgot password?',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Color(0xFF7B8794),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF3FB),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Text(
+                        'New parent? Contact the daycare to\nreceive your invite link.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xFF5C6C7A),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextButton(
@@ -1686,6 +1792,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         _isRegisterMode
                             ? 'Already have account? Login'
                             : 'No account? Register',
+                        style: const TextStyle(
+                          color: Color(0xFF6B8E89),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -1696,6 +1806,33 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       bottomNavigationBar: const _VersionBar(),
+    );
+  }
+
+  Widget _authFieldCard({required String label, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE5EAF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF7A8799),
+            ),
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
     );
   }
 }
