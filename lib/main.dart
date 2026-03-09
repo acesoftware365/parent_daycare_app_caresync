@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.1.10+12';
+const _appVersion = '1.2.0+13';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,13 +22,30 @@ class ParentDaycareApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const background = Color(0xFFFDF7F0);
+    const surface = Color(0xFFFFFBF7);
+    const brand = Color(0xFF2B6E6A);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Parent Daycare App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
-        scaffoldBackgroundColor: const Color(0xFFF3FAF8),
         useMaterial3: true,
+        scaffoldBackgroundColor: background,
+        colorScheme: const ColorScheme.light(
+          primary: brand,
+          secondary: Color(0xFFEF8A62),
+          surface: surface,
+        ),
+        cardTheme: const CardThemeData(
+          color: surface,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+            side: BorderSide(color: Color(0xFFE8DDD2)),
+          ),
+        ),
       ),
       home: const AuthGate(),
     );
@@ -46,7 +63,6 @@ class AuthGate extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
-            bottomNavigationBar: _VersionBar(),
           );
         }
 
@@ -78,60 +94,68 @@ class ParentPortalGate extends StatelessWidget {
         }
 
         if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Parent Access Error')),
-            body: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Could not resolve parent profile. Please contact daycare admin.',
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Error: ${snapshot.error}'),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => FirebaseAuth.instance.signOut(),
-                    child: const Text('Log Out'),
-                  ),
-                ],
-              ),
-            ),
-            bottomNavigationBar: const _VersionBar(),
+          return _SimpleStateScaffold(
+            title: 'Parent Access Error',
+            message:
+                'Could not resolve parent profile. Please contact daycare admin.',
+            detail: '${snapshot.error}',
+            actionLabel: 'Log Out',
+            onAction: () => FirebaseAuth.instance.signOut(),
           );
         }
 
         final contextData = snapshot.data;
         if (contextData == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Parent Access Pending')),
-            body: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'No parent profile linked to this login yet. Contact daycare admin.',
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Signed in: ${user.email ?? user.uid}'),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => FirebaseAuth.instance.signOut(),
-                    child: const Text('Log Out'),
-                  ),
-                ],
-              ),
-            ),
-            bottomNavigationBar: const _VersionBar(),
+          return _SimpleStateScaffold(
+            title: 'Parent Access Pending',
+            message:
+                'No parent profile linked to this login yet. Contact daycare admin.',
+            detail: user.email ?? user.uid,
+            actionLabel: 'Log Out',
+            onAction: () => FirebaseAuth.instance.signOut(),
           );
         }
 
         return ParentHomeShell(user: user, contextData: contextData);
       },
+    );
+  }
+}
+
+class _SimpleStateScaffold extends StatelessWidget {
+  const _SimpleStateScaffold({
+    required this.title,
+    required this.message,
+    required this.detail,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String message;
+  final String detail;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message),
+            const SizedBox(height: 8),
+            Text(detail),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
+        ),
+      ),
+      bottomNavigationBar: const _VersionBar(),
     );
   }
 }
@@ -155,174 +179,96 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 760;
-
     final pages = [
-      ParentInfoPage(contextData: widget.contextData, uid: widget.user.uid),
-      ChildInfoPage(contextData: widget.contextData, uid: widget.user.uid),
-      ContractPage(contextData: widget.contextData, uid: widget.user.uid),
-      SettingsPage(contextData: widget.contextData, uid: widget.user.uid),
+      HomePage(contextData: widget.contextData, uid: widget.user.uid),
+      ChildPage(contextData: widget.contextData, uid: widget.user.uid),
+      ProfilePage(contextData: widget.contextData, uid: widget.user.uid),
+      FormsPage(contextData: widget.contextData, uid: widget.user.uid),
+      const BillingPage(),
     ];
 
-    final titles = ['Parent', 'Child', 'Contract', 'Setting'];
-
-    if (isMobile) {
-      return Scaffold(
-        appBar: AppBar(title: Text(titles[_index]), actions: _actions()),
-        body: pages[_index],
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (value) => setState(() => _index = value),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  label: 'Parent',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.child_friendly_outlined),
-                  label: 'Child',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.description_outlined),
-                  label: 'Contract',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  label: 'Setting',
-                ),
-              ],
-            ),
-            const _VersionBar(),
-          ],
-        ),
-      );
-    }
+    const titles = ['Home', 'Child', 'Profile', 'Form', 'Billing'];
 
     return Scaffold(
-      appBar: AppBar(title: Text(titles[_index]), actions: _actions()),
-      body: Row(
-        children: [
-          Container(
-            width: 260,
-            color: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.12),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Parent Portal',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.user.email ?? '-',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                _sideButton(0, Icons.person_outline, 'Parent'),
-                _sideButton(1, Icons.child_friendly_outlined, 'Child'),
-                _sideButton(2, Icons.description_outlined, 'Contract'),
-                _sideButton(3, Icons.settings_outlined, 'Setting'),
-                const Spacer(),
-                const Text(
-                  'Version: $_appVersion',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-                ),
-              ],
-            ),
+      appBar: AppBar(
+        title: const Text('CareSync Parent App'),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Settings panel coming soon.')),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
           ),
-          Expanded(child: pages[_index]),
+          TextButton.icon(
+            onPressed: () => FirebaseAuth.instance.signOut(),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Logout'),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
-      bottomNavigationBar: const _VersionBar(),
-    );
-  }
-
-  List<Widget> _actions() {
-    return [
-      if (MediaQuery.of(context).size.width < 760)
-        const Padding(
-          padding: EdgeInsets.only(right: 8),
-          child: Center(
-            child: Text('v$_appVersion', style: TextStyle(fontSize: 12)),
+      body: SafeArea(
+        child: Padding(padding: const EdgeInsets.all(14), child: pages[_index]),
+      ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (value) => setState(() => _index = value),
+            destinations: List.generate(
+              titles.length,
+              (i) => NavigationDestination(
+                icon: Icon(_iconFor(i)),
+                label: titles[i],
+              ),
+            ),
           ),
-        ),
-      TextButton.icon(
-        onPressed: () => FirebaseAuth.instance.signOut(),
-        icon: const Icon(Icons.logout_rounded),
-        label: const Text('Log Out'),
-      ),
-      const SizedBox(width: 8),
-    ];
-  }
-
-  Widget _sideButton(int index, IconData icon, String label) {
-    final selected = _index == index;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: FilledButton.tonalIcon(
-        onPressed: () => setState(() => _index = index),
-        icon: Icon(icon),
-        label: Text(label),
-        style: FilledButton.styleFrom(
-          backgroundColor: selected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.26)
-              : Colors.white,
-        ),
+          const _VersionBar(),
+        ],
       ),
     );
+  }
+
+  IconData _iconFor(int i) {
+    switch (i) {
+      case 0:
+        return Icons.home_outlined;
+      case 1:
+        return Icons.child_friendly_outlined;
+      case 2:
+        return Icons.person_outline;
+      case 3:
+        return Icons.description_outlined;
+      case 4:
+        return Icons.receipt_long_outlined;
+      default:
+        return Icons.circle_outlined;
+    }
   }
 }
 
-class ParentInfoPage extends StatefulWidget {
-  const ParentInfoPage({
-    super.key,
-    required this.contextData,
-    required this.uid,
-  });
+class HomePage extends StatefulWidget {
+  const HomePage({super.key, required this.contextData, required this.uid});
 
   final ParentContext contextData;
   final String uid;
 
   @override
-  State<ParentInfoPage> createState() => _ParentInfoPageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _ParentInfoPageState extends State<ParentInfoPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _first = TextEditingController();
-  final _last = TextEditingController();
-  final _phone = TextEditingController();
-  final _address1 = TextEditingController();
-  final _address2 = TextEditingController();
-  final _city = TextEditingController();
-  final _state = TextEditingController();
-  final _zip = TextEditingController();
-  final _emergencyName = TextEditingController();
-  final _emergencyPhone = TextEditingController();
-
-  bool _initialized = false;
-  bool _saving = false;
+class _HomePageState extends State<HomePage> {
+  int _eta = 10;
+  int _rating = 0;
+  final _feedbackCtrl = TextEditingController();
 
   @override
   void dispose() {
-    _first.dispose();
-    _last.dispose();
-    _phone.dispose();
-    _address1.dispose();
-    _address2.dispose();
-    _city.dispose();
-    _state.dispose();
-    _zip.dispose();
-    _emergencyName.dispose();
-    _emergencyPhone.dispose();
+    _feedbackCtrl.dispose();
     super.dispose();
   }
 
@@ -330,182 +276,175 @@ class _ParentInfoPageState extends State<ParentInfoPage> {
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: ParentRepository().watchParentDoc(widget.contextData),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? const <String, dynamic>{};
-        if (!_initialized) {
-          _first.text = (data['firstName'] ?? '').toString();
-          _last.text = (data['lastName'] ?? '').toString();
-          _phone.text = (data['phone'] ?? '').toString();
-          _address1.text = (data['addressLine1'] ?? '').toString();
-          _address2.text = (data['addressLine2'] ?? '').toString();
-          _city.text = (data['city'] ?? '').toString();
-          _state.text = (data['state'] ?? '').toString();
-          _zip.text = (data['zip'] ?? '').toString();
-          _emergencyName.text = (data['emergencyContactName'] ?? '').toString();
-          _emergencyPhone.text = (data['emergencyContactPhone'] ?? '')
-              .toString();
-          _initialized = true;
-        }
+      builder: (context, parentSnap) {
+        final parent = parentSnap.data?.data() ?? const <String, dynamic>{};
+        final daycareName =
+            (parent['daycareName'] ?? parent['businessName'] ?? 'My Daycare')
+                .toString();
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Form(
-                  key: _formKey,
+        return StreamBuilder<List<ChildRecordLite>>(
+          stream: ParentRepository().watchChildrenForTenant(widget.contextData),
+          builder: (context, childSnap) {
+            final children = childSnap.data ?? const <ChildRecordLite>[];
+            final linkedChildren = children
+                .where((c) => c.parentId == widget.contextData.parentId)
+                .toList();
+            final selected = linkedChildren.isNotEmpty
+                ? linkedChildren.first
+                : null;
+
+            return ListView(
+              children: [
+                _SectionCard(
+                  title: 'Child Status',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text('Daycare: $daycareName'),
+                      const SizedBox(height: 6),
                       Text(
-                        'Parent Information',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        selected == null
+                            ? 'No child linked yet.'
+                            : 'Child: ${selected.fullName} | Status: Checked In',
                       ),
-                      const SizedBox(height: 12),
-                      _twoCol(
-                        _field(_first, 'First Name'),
-                        _field(_last, 'Last Name'),
+                      const SizedBox(height: 4),
+                      const Text('Check-in time: 8:10 AM'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'I\'m on my way',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _EtaChoice(
+                        label: '5 min',
+                        selected: _eta == 5,
+                        onTap: () => setState(() => _eta = 5),
                       ),
-                      _twoCol(
-                        _field(_phone, 'Phone'),
-                        _readonlyField(
-                          (data['email'] ?? '').toString(),
-                          'Email',
-                        ),
+                      _EtaChoice(
+                        label: '10 min',
+                        selected: _eta == 10,
+                        onTap: () => setState(() => _eta = 10),
                       ),
-                      _twoCol(
-                        _field(_address1, 'Address Line 1'),
-                        _field(_address2, 'Address Line 2'),
+                      _EtaChoice(
+                        label: '15 min',
+                        selected: _eta == 15,
+                        onTap: () => setState(() => _eta = 15),
                       ),
-                      _twoCol(_field(_city, 'City'), _field(_state, 'State')),
-                      _field(_zip, 'ZIP Code'),
-                      const Divider(height: 28),
-                      Text(
-                        'Emergency Contact',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      _twoCol(
-                        _field(_emergencyName, 'Emergency Contact Name'),
-                        _field(_emergencyPhone, 'Emergency Contact Phone'),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: _saving ? null : () => _save(data),
-                        child: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Save Parent Info'),
+                      FilledButton.icon(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('ETA $_eta min sent to daycare.'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.send_outlined),
+                        label: const Text('Send to daycare'),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-          ],
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Today Summary',
+                  child: Text(
+                    'Meals: Breakfast, Lunch\nNaps: 1\nMood: Happy\nAttendance: Present',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Latest Update',
+                  child: Text(
+                    'Teacher note: Great participation in reading time.\nMedia: Pending upload.',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Quick Actions',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const [
+                      _QuickActionChip(
+                        icon: Icons.event_busy_outlined,
+                        label: 'Report Absence',
+                      ),
+                      _QuickActionChip(
+                        icon: Icons.call_outlined,
+                        label: 'Call Daycare',
+                      ),
+                      _QuickActionChip(
+                        icon: Icons.description_outlined,
+                        label: 'View Forms',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Daycare Feedback',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        children: List.generate(5, (i) {
+                          final value = i + 1;
+                          return IconButton(
+                            onPressed: () => setState(() => _rating = value),
+                            icon: Icon(
+                              value <= _rating ? Icons.star : Icons.star_border,
+                              color: const Color(0xFFF59E0B),
+                            ),
+                          );
+                        }),
+                      ),
+                      TextField(
+                        controller: _feedbackCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          hintText: 'Write your feedback...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Feedback submitted.'),
+                            ),
+                          );
+                        },
+                        child: const Text('Submit Feedback'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-  }
-
-  Widget _field(TextEditingController c, String label, {bool enabled = true}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextFormField(
-        enabled: enabled,
-        controller: c,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  Widget _readonlyField(String value, String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextFormField(
-        enabled: false,
-        initialValue: value,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  Widget _twoCol(Widget left, Widget right) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 740) {
-          return Column(children: [left, right]);
-        }
-        return Row(
-          children: [
-            Expanded(child: left),
-            const SizedBox(width: 10),
-            Expanded(child: right),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _save(Map<String, dynamic> previous) async {
-    if (!_formKey.currentState!.validate()) return;
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _saving = true);
-    try {
-      await ParentRepository().updateParentProfile(
-        contextData: widget.contextData,
-        uid: widget.uid,
-        changes: {
-          'firstName': _first.text.trim(),
-          'lastName': _last.text.trim(),
-          'phone': _phone.text.trim(),
-          'addressLine1': _address1.text.trim(),
-          'addressLine2': _address2.text.trim(),
-          'city': _city.text.trim(),
-          'state': _state.text.trim(),
-          'zip': _zip.text.trim(),
-          'emergencyContactName': _emergencyName.text.trim(),
-          'emergencyContactPhone': _emergencyPhone.text.trim(),
-          'email': (previous['email'] ?? '').toString(),
-        },
-      );
-      if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Parent information saved.')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 }
 
-class ChildInfoPage extends StatefulWidget {
-  const ChildInfoPage({
-    super.key,
-    required this.contextData,
-    required this.uid,
-  });
+class ChildPage extends StatefulWidget {
+  const ChildPage({super.key, required this.contextData, required this.uid});
 
   final ParentContext contextData;
   final String uid;
 
   @override
-  State<ChildInfoPage> createState() => _ChildInfoPageState();
+  State<ChildPage> createState() => _ChildPageState();
 }
 
-class _ChildInfoPageState extends State<ChildInfoPage> {
+class _ChildPageState extends State<ChildPage> {
   bool _requesting = false;
 
   @override
@@ -514,77 +453,73 @@ class _ChildInfoPageState extends State<ChildInfoPage> {
       stream: ParentRepository().watchChildrenForTenant(widget.contextData),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text('Child read error: ${snapshot.error}'),
-                ),
-              ),
-            ],
+          return _SectionCard(
+            title: 'Child',
+            child: Text('Read error: ${snapshot.error}'),
           );
         }
+
         final children = snapshot.data ?? const <ChildRecordLite>[];
-        final linkedChildren = children
-            .where((child) => child.parentId == widget.contextData.parentId)
+        final linked = children
+            .where((c) => c.parentId == widget.contextData.parentId)
             .toList();
+
         return ListView(
-          padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Children linked to this parent: ${linkedChildren.length}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Tenant: ${widget.contextData.tenantId} | Parent: ${widget.contextData.parentId}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tenant children loaded: ${children.length}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+            _SectionCard(
+              title: 'Child',
+              child: Row(
+                children: [
+                  Expanded(child: Text('Linked children: ${linked.length}')),
+                  FilledButton.icon(
+                    onPressed: _requesting ? null : _openChildRequestDialog,
+                    icon: const Icon(Icons.add),
+                    label: Text(_requesting ? 'Submitting...' : 'Add Child'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.tonalIcon(
-                onPressed: _requesting ? null : _openChildRequestDialog,
-                icon: const Icon(Icons.add_circle_outline),
-                label: Text(
-                  _requesting ? 'Submitting...' : 'Request Add Child',
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (linkedChildren.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No child records linked to this parent yet.'),
-                ),
+            const SizedBox(height: 12),
+            if (linked.isEmpty)
+              const _SectionCard(
+                title: 'No child yet',
+                child: Text('No child records linked to this parent yet.'),
               )
             else
-              ...linkedChildren.map(
-                (child) => ChildCard(
-                  child: child,
-                  onSave: (changes) => ParentRepository().updateChildInfo(
-                    contextData: widget.contextData,
-                    childId: child.id,
-                    uid: widget.uid,
-                    changes: changes,
+              ...linked.map(
+                (child) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _SectionCard(
+                    title: child.fullName,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Age: Not specified'),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: const [
+                            _QuickActionChip(
+                              icon: Icons.verified_user_outlined,
+                              label: 'Authorized Pickup',
+                            ),
+                            _QuickActionChip(
+                              icon: Icons.medical_services_outlined,
+                              label: 'Medical Info',
+                            ),
+                            _QuickActionChip(
+                              icon: Icons.calendar_month_outlined,
+                              label: 'Attendance',
+                            ),
+                            _QuickActionChip(
+                              icon: Icons.description_outlined,
+                              label: 'Forms',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -701,125 +636,108 @@ class _ChildInfoPageState extends State<ChildInfoPage> {
   }
 }
 
-class ChildCard extends StatefulWidget {
-  const ChildCard({super.key, required this.child, required this.onSave});
-
-  final ChildRecordLite child;
-  final Future<void> Function(Map<String, dynamic>) onSave;
-
-  @override
-  State<ChildCard> createState() => _ChildCardState();
-}
-
-class _ChildCardState extends State<ChildCard> {
-  late final TextEditingController _allergies;
-  late final TextEditingController _medical;
-  late final TextEditingController _pickup;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _allergies = TextEditingController(text: widget.child.allergyNotes);
-    _medical = TextEditingController(text: widget.child.medicalNotes);
-    _pickup = TextEditingController(text: widget.child.pickupNotes);
-  }
-
-  @override
-  void dispose() {
-    _allergies.dispose();
-    _medical.dispose();
-    _pickup.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.child.fullName,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _allergies,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Allergies',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _medical,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Medical Notes',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _pickup,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Pickup Instructions',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            FilledButton(
-              onPressed: _saving
-                  ? null
-                  : () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      setState(() => _saving = true);
-                      await widget.onSave({
-                        'allergyNotes': _allergies.text.trim(),
-                        'medicalNotes': _medical.text.trim(),
-                        'pickupNotes': _pickup.text.trim(),
-                      });
-                      if (!mounted) return;
-                      setState(() => _saving = false);
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('${widget.child.fullName} updated.'),
-                        ),
-                      );
-                    },
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save Child Info'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class ContractPage extends StatefulWidget {
-  const ContractPage({super.key, required this.contextData, required this.uid});
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key, required this.contextData, required this.uid});
 
   final ParentContext contextData;
   final String uid;
 
   @override
-  State<ContractPage> createState() => _ContractPageState();
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: ParentRepository().watchParentDoc(contextData),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() ?? const <String, dynamic>{};
+        final firstName = (data['firstName'] ?? '').toString();
+        final lastName = (data['lastName'] ?? '').toString();
+        final fullName = '$firstName $lastName'.trim().isEmpty
+            ? 'Parent account'
+            : '$firstName $lastName'.trim();
+
+        return ListView(
+          children: [
+            _SectionCard(
+              title: 'Parent Information',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Name: $fullName'),
+                  Text('Role: Parent'),
+                  Text('Phone: ${(data['phone'] ?? '').toString()}'),
+                  Text('Email: ${(data['email'] ?? '').toString()}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Authorized Pickup',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (data['pickupNotes'] ?? 'No pickup notes yet.').toString(),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.tonal(
+                    onPressed: () {},
+                    child: const Text('Add Authorized Pickup'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Emergency Contacts',
+              child: Text(
+                'Name: ${(data['emergencyContactName'] ?? '').toString()}\n'
+                'Phone: ${(data['emergencyContactPhone'] ?? '').toString()}',
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Settings',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: const [
+                  _QuickActionChip(
+                    icon: Icons.language_outlined,
+                    label: 'Language',
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.notifications_outlined,
+                    label: 'Notifications',
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Privacy Policy',
+                  ),
+                  _QuickActionChip(
+                    icon: Icons.info_outline,
+                    label: 'App Version',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
-class _ContractPageState extends State<ContractPage> {
+class FormsPage extends StatefulWidget {
+  const FormsPage({super.key, required this.contextData, required this.uid});
+
+  final ParentContext contextData;
+  final String uid;
+
+  @override
+  State<FormsPage> createState() => _FormsPageState();
+}
+
+class _FormsPageState extends State<FormsPage> {
   final _signName = TextEditingController();
-  final _notes = TextEditingController();
   List<Offset?> _signaturePoints = <Offset?>[];
   bool _accepted = false;
   bool _initialized = false;
@@ -828,7 +746,6 @@ class _ContractPageState extends State<ContractPage> {
   @override
   void dispose() {
     _signName.dispose();
-    _notes.dispose();
     super.dispose();
   }
 
@@ -845,7 +762,6 @@ class _ContractPageState extends State<ContractPage> {
         if (!_initialized) {
           _accepted = contract['accepted'] == true;
           _signName.text = (contract['signedName'] ?? '').toString();
-          _notes.text = (contract['notes'] ?? '').toString();
           _signaturePoints = _decodeSignaturePoints(
             contract['signaturePoints'] as List<dynamic>?,
           );
@@ -853,109 +769,94 @@ class _ContractPageState extends State<ContractPage> {
         }
 
         return ListView(
-          padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Parent Contract',
-                      style: Theme.of(context).textTheme.titleLarge,
+            _SectionCard(
+              title: 'Add Signature',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile(
+                    value: _accepted,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('I accept the contract terms'),
+                    onChanged: (v) => setState(() => _accepted = v),
+                  ),
+                  TextField(
+                    controller: _signName,
+                    decoration: const InputDecoration(
+                      labelText: 'Signature Name',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(height: 8),
-                    const Text('Review and accept daycare contract terms.'),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _accepted,
-                      title: const Text('I accept the current contract terms'),
-                      onChanged: (value) => setState(() => _accepted = value),
-                    ),
-                    TextField(
-                      controller: _signName,
-                      decoration: const InputDecoration(
-                        labelText: 'Signature Name',
-                        border: OutlineInputBorder(),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text('Signature pad'),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _signaturePoints = <Offset?>[]),
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Clear'),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _notes,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Contract Notes',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          'Finger Signature',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _signaturePoints = <Offset?>[]),
-                          icon: const Icon(Icons.clear),
-                          label: const Text('Clear'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SignaturePad(
-                      points: _signaturePoints,
-                      onChanged: (next) =>
-                          setState(() => _signaturePoints = next),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _saving
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _saving = true);
-                              await ParentRepository().updateParentProfile(
-                                contextData: widget.contextData,
-                                uid: widget.uid,
-                                changes: {
-                                  'parentContract': {
-                                    'accepted': _accepted,
-                                    'signedName': _signName.text.trim(),
-                                    'notes': _notes.text.trim(),
-                                    'signaturePoints': _encodeSignaturePoints(
-                                      _signaturePoints,
-                                    ),
-                                    'signatureCaptured': _signaturePoints.any(
-                                      (p) => p != null,
-                                    ),
-                                    'signedAt': FieldValue.serverTimestamp(),
-                                  },
+                    ],
+                  ),
+                  SignaturePad(
+                    points: _signaturePoints,
+                    onChanged: (next) =>
+                        setState(() => _signaturePoints = next),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton(
+                    onPressed: _saving
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() => _saving = true);
+                            await ParentRepository().updateParentProfile(
+                              contextData: widget.contextData,
+                              uid: widget.uid,
+                              changes: {
+                                'parentContract': {
+                                  'accepted': _accepted,
+                                  'signedName': _signName.text.trim(),
+                                  'signaturePoints': _encodeSignaturePoints(
+                                    _signaturePoints,
+                                  ),
+                                  'signatureCaptured': _signaturePoints.any(
+                                    (p) => p != null,
+                                  ),
+                                  'signedAt': FieldValue.serverTimestamp(),
                                 },
-                              );
-                              if (!mounted) return;
-                              setState(() => _saving = false);
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Contract information saved.'),
-                                ),
-                              );
-                            },
-                      child: _saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Save Contract'),
-                    ),
-                  ],
-                ),
+                              },
+                            );
+                            if (!mounted) return;
+                            setState(() => _saving = false);
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('Signature saved.')),
+                            );
+                          },
+                    child: const Text('Save Signature'),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Pending Signature',
+              child: Text('• Registration Form\n• Going Out Permit'),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Main Documents',
+              child: Text(
+                '• Contract\n• Registration\n• Emergency Contact Form\n• Medical Information',
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Signed Documents',
+              child: Text('Completed documents will appear here.'),
             ),
           ],
         );
@@ -989,6 +890,117 @@ class _ContractPageState extends State<ContractPage> {
       }
     }
     return out;
+  }
+}
+
+class BillingPage extends StatelessWidget {
+  const BillingPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        _SectionCard(
+          title: 'Current Balance',
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  r'$420.00 due',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+              ),
+              FilledButton(onPressed: () {}, child: const Text('Pay Now')),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const _SectionCard(
+          title: 'Upcoming Invoice',
+          child: Text('Period: Mar 1 - Mar 31\nAmount: \$420.00'),
+        ),
+        const SizedBox(height: 12),
+        const _SectionCard(
+          title: 'Payment Methods',
+          child: Text('Default: Visa •••• 2345\nAdd / Edit methods available.'),
+        ),
+        const SizedBox(height: 12),
+        const _SectionCard(
+          title: 'Recent Payments',
+          child: Text('• Feb 01 - \$420.00\n• Jan 01 - \$420.00'),
+        ),
+        const SizedBox(height: 12),
+        const _SectionCard(
+          title: 'Receipts & Tax Records',
+          child: Text('Downloadable records will appear here.'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EtaChoice extends StatelessWidget {
+  const _EtaChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+    );
+  }
+}
+
+class _QuickActionChip extends StatelessWidget {
+  const _QuickActionChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$label is ready for integration.')),
+        );
+      },
+    );
   }
 }
 
@@ -1037,7 +1049,7 @@ class _SignaturePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF0F766E)
+      ..color = const Color(0xFF2B6E6A)
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
 
@@ -1055,131 +1067,274 @@ class _SignaturePainter extends CustomPainter {
       oldDelegate.points != points;
 }
 
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.contextData, required this.uid});
-
-  final ParentContext contextData;
-  final String uid;
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  bool _notificationsEmail = true;
-  bool _notificationsSms = false;
-  String _language = 'English';
-  bool _initialized = false;
-  bool _saving = false;
+class _VersionBar extends StatelessWidget {
+  const _VersionBar();
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: ParentRepository().watchParentDoc(widget.contextData),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? const <String, dynamic>{};
-        final settings =
-            (data['parentAppSettings'] as Map<String, dynamic>?) ??
-            const <String, dynamic>{};
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      color: const Color(0xFFF1E7DC),
+      child: const Text(
+        'Parent App Version: v$_appVersion',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
 
-        if (!_initialized) {
-          _notificationsEmail = settings['notificationsEmail'] != false;
-          _notificationsSms = settings['notificationsSms'] == true;
-          _language = (settings['preferredLanguage'] ?? 'English').toString();
-          _initialized = true;
-        }
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  static const _rememberKey = 'remember_login';
+  static const _savedEmailKey = 'saved_login_email';
+  static const _savedPasswordKey = 'saved_login_password';
+
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _rememberLogin = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreSavedCredentials();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      await _persistCredentials();
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _error = _messageForCode(e.code);
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Unexpected error. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Enter a valid email first.');
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not send reset email. Try again later.');
+    }
+  }
+
+  Future<void> _restoreSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final remembered = prefs.getBool(_rememberKey) ?? true;
+    final savedEmail = prefs.getString(_savedEmailKey) ?? '';
+    final savedPassword = prefs.getString(_savedPasswordKey) ?? '';
+    if (!mounted) return;
+    setState(() {
+      _rememberLogin = remembered;
+      if (remembered) {
+        _emailController.text = savedEmail;
+        _passwordController.text = savedPassword;
+      }
+    });
+  }
+
+  Future<void> _persistCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberKey, _rememberLogin);
+    if (_rememberLogin) {
+      await prefs.setString(_savedEmailKey, _emailController.text.trim());
+      await prefs.setString(_savedPasswordKey, _passwordController.text);
+    } else {
+      await prefs.remove(_savedEmailKey);
+      await prefs.remove(_savedPasswordKey);
+    }
+  }
+
+  String _messageForCode(String code) {
+    switch (code) {
+      case 'invalid-email':
+        return 'Email format is invalid.';
+      case 'user-disabled':
+        return 'This account is disabled.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Invalid email or password.';
+      default:
+        return 'Login failed ($code).';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Daycare Parent Login'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings are not available before login.'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Card(
+            margin: const EdgeInsets.all(20),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Form(
+                key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Settings',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'Welcome Back',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _notificationsEmail,
-                      title: const Text('Email Notifications'),
-                      onChanged: (value) =>
-                          setState(() => _notificationsEmail = value),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Email + password only',
+                      textAlign: TextAlign.center,
                     ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _notificationsSms,
-                      title: const Text('SMS Notifications'),
-                      onChanged: (value) =>
-                          setState(() => _notificationsSms = value),
-                    ),
-                    DropdownButtonFormField<String>(
-                      initialValue: _language,
+                    const SizedBox(height: 18),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
-                        labelText: 'Preferred Language',
+                        labelText: 'Email',
                         border: OutlineInputBorder(),
                       ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'English',
-                          child: Text('English'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Spanish',
-                          child: Text('Spanish'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _language = value);
-                        }
+                      validator: (value) {
+                        final input = (value ?? '').trim();
+                        if (input.isEmpty) return 'Email is required';
+                        if (!input.contains('@')) return 'Enter a valid email';
+                        return null;
                       },
                     ),
                     const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: _saving
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _saving = true);
-                              await ParentRepository().updateParentProfile(
-                                contextData: widget.contextData,
-                                uid: widget.uid,
-                                changes: {
-                                  'parentAppSettings': {
-                                    'notificationsEmail': _notificationsEmail,
-                                    'notificationsSms': _notificationsSms,
-                                    'preferredLanguage': _language,
-                                  },
-                                },
-                              );
-                              if (!mounted) return;
-                              setState(() => _saving = false);
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Settings saved.'),
-                                ),
-                              );
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').isEmpty) {
+                          return 'Password is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CheckboxListTile(
+                            value: _rememberLogin,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: const Text('Remember login'),
+                            onChanged: (value) {
+                              setState(() => _rememberLogin = value ?? false);
                             },
-                      child: _saving
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _isLoading ? null : _forgotPassword,
+                          child: const Text('Forgot password?'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'New parents: contact daycare to receive an invite.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    FilledButton(
+                      onPressed: _isLoading ? null : _signIn,
+                      child: _isLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Save Settings'),
+                          : const Text('Login'),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
+      bottomNavigationBar: const _VersionBar(),
     );
   }
 }
@@ -1293,7 +1448,7 @@ class ParentRepository {
     if (idToken == null || idToken.isEmpty) return null;
 
     final uri = Uri.parse(
-      'https://firestore.googleapis.com/v1/projects/liisgo-daycare-system/databases/(default)/documents/parent_memberships/$authUid',
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/parent_memberships/$authUid',
     );
     final response = await http.get(
       uri,
@@ -1365,25 +1520,6 @@ class ParentRepository {
           ...changes,
           'updatedAt': FieldValue.serverTimestamp(),
           'updatedByUid': uid,
-          'sourceApp': 'parent_daycare_app',
-        }, SetOptions(merge: true));
-  }
-
-  Future<void> updateChildInfo({
-    required ParentContext contextData,
-    required String childId,
-    required String uid,
-    required Map<String, dynamic> changes,
-  }) async {
-    await _db
-        .collection('tenants')
-        .doc(contextData.tenantId)
-        .collection('children')
-        .doc(childId)
-        .set({
-          ...changes,
-          'parentUpdatedAt': FieldValue.serverTimestamp(),
-          'parentUpdatedByUid': uid,
           'sourceApp': 'parent_daycare_app',
         }, SetOptions(merge: true));
   }
@@ -1506,229 +1642,5 @@ class ParentRepository {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Request failed (${response.statusCode})');
     }
-  }
-}
-
-class _VersionBar extends StatelessWidget {
-  const _VersionBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      color: const Color(0xFFE6F2EF),
-      child: Text(
-        'Parent App Version: v$_appVersion',
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  static const _rememberKey = 'remember_login';
-  static const _savedEmailKey = 'saved_login_email';
-  static const _savedPasswordKey = 'saved_login_password';
-
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _rememberLogin = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _restoreSavedCredentials();
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      await _persistCredentials();
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _error = _messageForCode(e.code);
-      });
-    } catch (_) {
-      setState(() {
-        _error = 'Unexpected error. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _restoreSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final remembered = prefs.getBool(_rememberKey) ?? true;
-    final savedEmail = prefs.getString(_savedEmailKey) ?? '';
-    final savedPassword = prefs.getString(_savedPasswordKey) ?? '';
-    if (!mounted) return;
-    setState(() {
-      _rememberLogin = remembered;
-      if (remembered) {
-        _emailController.text = savedEmail;
-        _passwordController.text = savedPassword;
-      }
-    });
-  }
-
-  Future<void> _persistCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_rememberKey, _rememberLogin);
-    if (_rememberLogin) {
-      await prefs.setString(_savedEmailKey, _emailController.text.trim());
-      await prefs.setString(_savedPasswordKey, _passwordController.text);
-    } else {
-      await prefs.remove(_savedEmailKey);
-      await prefs.remove(_savedPasswordKey);
-    }
-  }
-
-  String _messageForCode(String code) {
-    switch (code) {
-      case 'invalid-email':
-        return 'Email format is invalid.';
-      case 'user-disabled':
-        return 'This account is disabled.';
-      case 'user-not-found':
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Invalid email or password.';
-      default:
-        return 'Login failed ($code).';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            margin: const EdgeInsets.all(20),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Parent Portal Login',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sign in with your parent account',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        final input = (value ?? '').trim();
-                        if (input.isEmpty) return 'Email is required';
-                        if (!input.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if ((value ?? '').isEmpty) {
-                          return 'Password is required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 6),
-                    CheckboxListTile(
-                      value: _rememberLogin,
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text('Remember login'),
-                      onChanged: (value) {
-                        setState(() => _rememberLogin = value ?? false);
-                      },
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _isLoading ? null : _signIn,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Log In'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      bottomNavigationBar: const _VersionBar(),
-    );
   }
 }
