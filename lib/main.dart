@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.4+17';
+const _appVersion = '1.2.5+18';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1130,80 +1130,354 @@ class ProfilePage extends StatelessWidget {
         final firstName = (data['firstName'] ?? '').toString();
         final lastName = (data['lastName'] ?? '').toString();
         final fullName = '$firstName $lastName'.trim().isEmpty
-            ? 'Parent account'
+            ? 'Juan Polanco'
             : '$firstName $lastName'.trim();
+        final phone = (data['phone'] ?? '(203) 555-0184').toString();
+        final email = (data['email'] ?? 'juan@email.com').toString();
 
         return ListView(
-          children:
-              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
-              [
-                _SectionCard(
-                  title: 'Parent Information',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFF8DDE5),
+                    Color(0xFFD2EBFF),
+                    Color(0xFFD6F3E0),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                      child: Center(
+                        child: Text('👥', style: TextStyle(fontSize: 28)),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SUNSHINE KIDS DAYCARE',
+                          style: TextStyle(
+                            fontSize: 14,
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF657384),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Profile',
+                          style: TextStyle(
+                            fontSize: 40,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Parent information and\npickup details',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF607080),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FBFF),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFD8E2EC)),
+              ),
+              child: Column(
+                children: [
+                  Row(
                     children: [
-                      Text('Name: $fullName'),
-                      Text('Role: Parent'),
-                      Text('Phone: ${(data['phone'] ?? '').toString()}'),
-                      Text('Email: ${(data['email'] ?? '').toString()}'),
+                      Container(
+                        width: 62,
+                        height: 62,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD4E9FC),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.person,
+                            color: Color(0xFF5A6B7A),
+                            size: 30,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fullName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: Color(0xFF2B3442),
+                              ),
+                            ),
+                            const Text(
+                              'Father · Primary\naccount',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Color(0xFF67758A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEDEFF3),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Text(
+                          'Edit',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF6C7482),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'Authorized Pickup',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Text(
-                        (data['pickupNotes'] ?? 'No pickup notes yet.')
-                            .toString(),
+                      Expanded(
+                        child: _profileInfoCell(label: 'Phone:', value: phone),
                       ),
-                      const SizedBox(height: 8),
-                      FilledButton.tonal(
-                        onPressed: () {},
-                        child: const Text('Add Authorized Pickup'),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _profileInfoCell(label: 'Email:', value: email),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'Emergency Contacts',
-                  child: Text(
-                    'Name: ${(data['emergencyContactName'] ?? '').toString()}\n'
-                    'Phone: ${(data['emergencyContactPhone'] ?? '').toString()}',
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _profileGroup(
+              title: 'AUTHORIZED PICKUP',
+              trailing: const _TinyGreenPill(label: 'Add'),
+              child: const Column(
+                children: [
+                  _SoftListRow(
+                    text: 'Juan Polanco · Father',
+                    color: Color(0xFFDDEAF6),
                   ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'Settings',
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: const [
-                      _QuickActionChip(
-                        icon: Icons.language_outlined,
-                        label: 'Language',
-                      ),
-                      _QuickActionChip(
-                        icon: Icons.notifications_outlined,
-                        label: 'Notifications',
-                      ),
-                      _QuickActionChip(
-                        icon: Icons.privacy_tip_outlined,
-                        label: 'Privacy Policy',
-                      ),
-                      _QuickActionChip(
-                        icon: Icons.info_outline,
-                        label: 'App Version',
-                      ),
-                    ],
+                  SizedBox(height: 10),
+                  _SoftListRow(
+                    text: 'Maria Polanco · Mother',
+                    color: Color(0xFFDFF2EA),
                   ),
-                ),
-              ],
+                  SizedBox(height: 10),
+                  _SoftListRow(
+                    text: 'Rosa Polanco · Grandmother',
+                    color: Color(0xFFF4F0DE),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _profileGroup(
+              title: 'EMERGENCY CONTACTS',
+              child: const Column(
+                children: [
+                  _EmergencyCard(
+                    title: 'Emergency Contact 1',
+                    value: 'Maria Polanco · (203) 555-0140',
+                    color: Color(0xFFF4E7EB),
+                  ),
+                  SizedBox(height: 10),
+                  _EmergencyCard(
+                    title: 'Emergency Contact 2',
+                    value: 'Rosa Polanco · (203) 555-0162',
+                    color: Color(0xFFEAE6F9),
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _profileInfoCell({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4F8),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Color(0xFF5E6B7A), fontSize: 14),
+          children: [
+            TextSpan(
+              text: '$label ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileGroup({
+    required String title,
+    required Widget child,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: Color(0xFF3C4A5B),
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _TinyGreenPill extends StatelessWidget {
+  const _TinyGreenPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFCFF4DD),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF2F9965),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _SoftListRow extends StatelessWidget {
+  const _SoftListRow({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFF4A5766),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyCard extends StatelessWidget {
+  const _EmergencyCard({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF3D4A59),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(color: Color(0xFF596678))),
+        ],
+      ),
     );
   }
 }
@@ -1506,26 +1780,6 @@ class _EtaChoice extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-    );
-  }
-}
-
-class _QuickActionChip extends StatelessWidget {
-  const _QuickActionChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$label is ready for integration.')),
-        );
-      },
     );
   }
 }
