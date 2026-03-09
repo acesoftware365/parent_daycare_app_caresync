@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.1+14';
+const _appVersion = '1.2.2+15';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -193,15 +193,6 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
       appBar: AppBar(
         title: const Text('CareSync Parent App'),
         actions: [
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings panel coming soon.')),
-              );
-            },
-            icon: const Icon(Icons.settings_outlined),
-          ),
           TextButton.icon(
             onPressed: () => FirebaseAuth.instance.signOut(),
             icon: const Icon(Icons.logout_rounded),
@@ -279,8 +270,11 @@ class _HomePageState extends State<HomePage> {
       builder: (context, parentSnap) {
         final parent = parentSnap.data?.data() ?? const <String, dynamic>{};
         final daycareName =
-            (parent['daycareName'] ?? parent['businessName'] ?? 'My Daycare')
-                .toString();
+            (parent['daycareName'] ??
+                    parent['businessName'] ??
+                    'Sunshine Kids Daycare')
+                .toString()
+                .toUpperCase();
 
         return StreamBuilder<List<ChildRecordLite>>(
           stream: ParentRepository().watchChildrenForTenant(widget.contextData),
@@ -292,151 +286,431 @@ class _HomePageState extends State<HomePage> {
             final selected = linkedChildren.isNotEmpty
                 ? linkedChildren.first
                 : null;
+            final childName = selected?.fullName.isNotEmpty == true
+                ? selected!.fullName
+                : 'Emma Polanco';
 
             return ListView(
-              children:
-                  const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
-                  [
-                    _SectionCard(
-                      title: 'Child Status',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Daycare: $daycareName'),
-                          const SizedBox(height: 6),
-                          Text(
-                            selected == null
-                                ? 'No child linked yet.'
-                                : 'Child: ${selected.fullName} | Status: Checked In',
-                          ),
-                          const SizedBox(height: 4),
-                          const Text('Check-in time: 8:10 AM'),
-                        ],
-                      ),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFFBEE3FF),
+                        Color(0xFFDFF5E6),
+                        Color(0xFFF9DDE6),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    _SectionCard(
-                      title: 'I\'m on my way',
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              daycareName,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                letterSpacing: 1,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF5D6B7A),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              childName,
+                              style: const TextStyle(
+                                fontSize: 43,
+                                height: 1,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1F2A3D),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Checked in today',
+                              style: TextStyle(
+                                color: Color(0xFF5E6D79),
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x1A000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'STATUS',
+                              style: TextStyle(
+                                fontSize: 12,
+                                letterSpacing: 1,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '● Checked In',
+                              style: TextStyle(
+                                color: Color(0xFF239B5A),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '8:12 AM',
+                              style: TextStyle(color: Color(0xFF6B7280)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F7EF),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFCFEAD7)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "🚗 I'M ON MY WAY",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                          color: Color(0xFF355E52),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Select arrival time',
+                        style: TextStyle(
+                          color: Color(0xFF51697A),
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
                         children: [
                           _EtaChoice(
                             label: '5 min',
                             selected: _eta == 5,
                             onTap: () => setState(() => _eta = 5),
                           ),
+                          const SizedBox(width: 8),
                           _EtaChoice(
                             label: '10 min',
                             selected: _eta == 10,
                             onTap: () => setState(() => _eta = 10),
                           ),
+                          const SizedBox(width: 8),
                           _EtaChoice(
                             label: '15 min',
                             selected: _eta == 15,
                             onTap: () => setState(() => _eta = 15),
                           ),
-                          FilledButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'ETA $_eta min sent to daycare.',
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.send_outlined),
-                            label: const Text('Send to daycare'),
-                          ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const _SectionCard(
-                      title: 'Today Summary',
-                      child: Text(
-                        'Meals: Breakfast, Lunch\nNaps: 1\nMood: Happy\nAttendance: Present',
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF2F9965),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('ETA $_eta min sent to daycare.'),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Send to daycare',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const _SectionCard(
-                      title: 'Latest Update',
-                      child: Text(
-                        'Teacher note: Great participation in reading time.\nMedia: Pending upload.',
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SectionCard(
+                  title: 'TODAY SUMMARY',
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: const [
+                      _SummaryChip(
+                        label: '🍎 Breakfast',
+                        color: Color(0xFFE7F5EE),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    _SectionCard(
-                      title: 'Quick Actions',
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: const [
-                          _QuickActionChip(
-                            icon: Icons.event_busy_outlined,
-                            label: 'Report Absence',
-                          ),
-                          _QuickActionChip(
-                            icon: Icons.call_outlined,
-                            label: 'Call Daycare',
-                          ),
-                          _QuickActionChip(
-                            icon: Icons.description_outlined,
-                            label: 'View Forms',
-                          ),
-                        ],
+                      _SummaryChip(
+                        label: '😴 Nap Time',
+                        color: Color(0xFFEDEBFA),
                       ),
+                      _SummaryChip(
+                        label: '☀️ Outdoor Play',
+                        color: Color(0xFFF7F2E1),
+                      ),
+                      _SummaryChip(
+                        label: '🍼 Diaper Change',
+                        color: Color(0xFFF7E8EB),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SectionCard(
+                  title: 'LATEST UPDATE',
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFDCEBFB), Color(0xFFF8E2EC)],
+                      ),
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    const SizedBox(height: 12),
-                    _SectionCard(
-                      title: 'Daycare Feedback',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            children: List.generate(5, (i) {
-                              final value = i + 1;
-                              return IconButton(
-                                onPressed: () =>
-                                    setState(() => _rating = value),
-                                icon: Icon(
-                                  value <= _rating
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  color: const Color(0xFFF59E0B),
-                                ),
-                              );
-                            }),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 170,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          TextField(
-                            controller: _feedbackCtrl,
-                            maxLines: 2,
-                            decoration: const InputDecoration(
-                              hintText: 'Write your feedback...',
-                              border: OutlineInputBorder(),
+                          child: const Center(
+                            child: Icon(
+                              Icons.camera_alt_outlined,
+                              size: 38,
+                              color: Color(0xFF6B7280),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          FilledButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Feedback submitted.'),
-                                ),
-                              );
-                            },
-                            child: const Text('Submit Feedback'),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Emma painting with friends',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF374151),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Teacher note: Emma enjoyed art time and shared materials nicely with the group.',
+                          style: TextStyle(
+                            color: Color(0xFF4B5563),
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SectionCard(
+                  title: 'QUICK ACTIONS',
+                  child: Column(
+                    children: [
+                      Row(
+                        children: const [
+                          Expanded(
+                            child: _ActionButtonCard(
+                              label: 'Report\nAbsence',
+                              bg: Color(0xFFD9EAFA),
+                              fg: Color(0xFF335F8A),
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: _ActionButtonCard(
+                              label: 'Call Daycare',
+                              bg: Color(0xFFF6EAB8),
+                              fg: Color(0xFF92601D),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      const _ActionButtonCard(
+                        label: 'View Forms',
+                        bg: Color(0xFFE0DCF8),
+                        fg: Color(0xFF5A43BE),
+                        fullWidth: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SectionCard(
+                  title: 'DAYCARE FEEDBACK',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Rate your experience today',
+                        style: TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        children: List.generate(5, (i) {
+                          final value = i + 1;
+                          return IconButton(
+                            onPressed: () => setState(() => _rating = value),
+                            icon: Icon(
+                              value <= _rating ? Icons.star : Icons.star_border,
+                              color: const Color(0xFFEAB308),
+                            ),
+                          );
+                        }),
+                      ),
+                      TextField(
+                        controller: _feedbackCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Write a comment...',
+                          filled: true,
+                          fillColor: const Color(0xFFF4F6FA),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFF59E0B),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Feedback submitted.'),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Submit Feedback',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             );
           },
         );
       },
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF4B5563),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButtonCard extends StatelessWidget {
+  const _ActionButtonCard({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    this.fullWidth = false,
+  });
+
+  final String label;
+  final Color bg;
+  final Color fg;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontWeight: FontWeight.w700, color: fg, fontSize: 17),
+      ),
+    );
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$label tapped.'))),
+      child: child,
     );
   }
 }
@@ -1162,6 +1436,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _rememberLogin = true;
+  bool _isRegisterMode = false;
   String? _error;
 
   @override
@@ -1177,7 +1452,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _signIn() async {
+  Future<void> _submitAuth() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -1186,10 +1461,22 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      if (_isRegisterMode) {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created successfully.')),
+          );
+        }
+      } else {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      }
       await _persistCredentials();
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -1260,33 +1547,23 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'Email format is invalid.';
       case 'user-disabled':
         return 'This account is disabled.';
+      case 'email-already-in-use':
+        return 'This email is already in use.';
+      case 'weak-password':
+        return 'Password should be at least 6 characters.';
       case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':
         return 'Invalid email or password.';
       default:
-        return 'Login failed ($code).';
+        return 'Auth failed ($code).';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Daycare Parent Login'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Settings are not available before login.'),
-                ),
-              );
-            },
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('My Daycare Parent Login')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
@@ -1301,13 +1578,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Welcome Back',
+                      _isRegisterMode
+                          ? 'Create Parent Account'
+                          : 'Welcome Back',
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Email + password only',
+                    Text(
+                      _isRegisterMode
+                          ? 'Register with email + password'
+                          : 'Login with email + password',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 18),
@@ -1337,6 +1618,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         if ((value ?? '').isEmpty) {
                           return 'Password is required';
                         }
+                        if (_isRegisterMode && (value ?? '').length < 6) {
+                          return 'Use at least 6 characters';
+                        }
                         return null;
                       },
                     ),
@@ -1355,10 +1639,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             },
                           ),
                         ),
-                        TextButton(
-                          onPressed: _isLoading ? null : _forgotPassword,
-                          child: const Text('Forgot password?'),
-                        ),
+                        if (!_isRegisterMode)
+                          TextButton(
+                            onPressed: _isLoading ? null : _forgotPassword,
+                            child: const Text('Forgot password?'),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -1378,14 +1663,30 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                     const SizedBox(height: 14),
                     FilledButton(
-                      onPressed: _isLoading ? null : _signIn,
+                      onPressed: _isLoading ? null : _submitAuth,
                       child: _isLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Login'),
+                          : Text(_isRegisterMode ? 'Register' : 'Login'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              setState(() {
+                                _isRegisterMode = !_isRegisterMode;
+                                _error = null;
+                              });
+                            },
+                      child: Text(
+                        _isRegisterMode
+                            ? 'Already have account? Login'
+                            : 'No account? Register',
+                      ),
                     ),
                   ],
                 ),
