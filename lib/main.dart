@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.7+20';
+const _appVersion = '1.2.8+21';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1526,69 +1526,182 @@ class _FormsPageState extends State<FormsPage> {
 
         return ListView(
           children: [
-            _SectionCard(
-              title: 'Forms',
-              child: Row(
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFDCD9F6), Color(0xFFD2EFE0)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Row(
                 children: [
-                  FilledButton.icon(
-                    onPressed: _saving ? null : () => _openSignatureDialog(),
-                    icon: const Icon(Icons.draw_outlined),
-                    label: const Text('Add Signature'),
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                      child: Center(
+                        child: Text('📄', style: TextStyle(fontSize: 28)),
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      _signaturePoints.any((p) => p != null)
-                          ? 'Signature captured'
-                          : 'No signature yet',
-                      style: const TextStyle(color: Color(0xFF64748B)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SUNSHINE KIDS DAYCARE',
+                          style: TextStyle(
+                            fontSize: 14,
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF657384),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Forms',
+                          style: TextStyle(
+                            fontSize: 40,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Registration and normal\ndaycare documents',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF607080),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Pending Signature',
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF3FB37B),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: _saving ? null : () => _openSignatureDialog(),
+                child: const Text(
+                  'Add Signature',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FBFF),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFD8E2EC)),
+              ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _PendingDocRow(
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'PENDING SIGNATURE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: Color(0xFF3C4A5B),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8E7B5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          '2 Pending',
+                          style: TextStyle(
+                            color: Color(0xFF9B6A21),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _PendingSignCard(
                     title: 'Registration Form',
+                    subtitle: 'Child enrollment information',
+                    color: const Color(0xFFF8F3DF),
                     onSign: _saving ? null : _openSignatureDialog,
-                    onView: () => _showViewMessage('Registration Form'),
                   ),
                   const SizedBox(height: 10),
-                  _PendingDocRow(
+                  _PendingSignCard(
                     title: 'Going Out Permit',
+                    subtitle: 'Permission for trips and\noutside activities',
+                    color: const Color(0xFFF4E7EB),
                     onSign: _saving ? null : _openSignatureDialog,
-                    onView: () => _showViewMessage('Going Out Permit'),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Main Documents',
-              child: Column(
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FBFF),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFD8E2EC)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _PendingDocRow(
-                    title: 'Contract',
-                    onSign: _saving ? null : _openSignatureDialog,
-                    onView: () => _showViewMessage('Contract'),
+                  Text(
+                    'MAIN DOCUMENTS',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: Color(0xFF3C4A5B),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  _PendingDocRow(
-                    title: 'Emergency Contact Form',
-                    onSign: _saving ? null : _openSignatureDialog,
-                    onView: () => _showViewMessage('Emergency Contact Form'),
+                  SizedBox(height: 12),
+                  _FormsDocRow(
+                    text: 'Daycare Contract',
+                    color: Color(0xFFDCE8F4),
+                  ),
+                  SizedBox(height: 10),
+                  _FormsDocRow(
+                    text: 'Child Registration',
+                    color: Color(0xFFDFF2EA),
+                  ),
+                  SizedBox(height: 10),
+                  _FormsDocRow(
+                    text: 'Emergency Contact Form',
+                    color: Color(0xFFE9E7F8),
+                  ),
+                  SizedBox(height: 10),
+                  _FormsDocRow(
+                    text: 'Medical Information',
+                    color: Color(0xFFF4F0DE),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Signed Documents',
-              child: Text('Completed and signed documents will appear here.'),
             ),
           ],
         );
@@ -1702,12 +1815,6 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
-  void _showViewMessage(String doc) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('View: $doc')));
-  }
-
   List<Map<String, double?>> _encodeSignaturePoints(List<Offset?> points) {
     return points
         .map(
@@ -1737,54 +1844,83 @@ class _FormsPageState extends State<FormsPage> {
   }
 }
 
-class _PendingDocRow extends StatelessWidget {
-  const _PendingDocRow({
+class _PendingSignCard extends StatelessWidget {
+  const _PendingSignCard({
     required this.title,
+    required this.subtitle,
+    required this.color,
     required this.onSign,
-    required this.onView,
   });
 
   final String title;
+  final String subtitle;
+  final Color color;
   final VoidCallback? onSign;
-  final VoidCallback onView;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD8E2EC)),
+        color: color,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF3D4A59),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Color(0xFF63748A)),
+                ),
+              ],
             ),
           ),
-          Column(
-            children: [
-              SizedBox(
-                width: 88,
-                child: OutlinedButton(
-                  onPressed: onSign,
-                  child: const Text('Sign'),
-                ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: 88,
-                child: OutlinedButton(
-                  onPressed: onView,
-                  child: const Text('View'),
-                ),
-              ),
-            ],
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 74,
+            child: FilledButton.tonal(
+              onPressed: onSign,
+              child: const Text('Sign'),
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FormsDocRow extends StatelessWidget {
+  const _FormsDocRow({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFF4B5A6B),
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
