@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.5+18';
+const _appVersion = '1.2.6+19';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1525,103 +1525,187 @@ class _FormsPageState extends State<FormsPage> {
         }
 
         return ListView(
-          children:
-              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
-              [
-                _SectionCard(
-                  title: 'Add Signature',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SwitchListTile(
-                        value: _accepted,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('I accept the contract terms'),
-                        onChanged: (v) => setState(() => _accepted = v),
-                      ),
-                      TextField(
-                        controller: _signName,
-                        decoration: const InputDecoration(
-                          labelText: 'Signature Name',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const Text('Signature pad'),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: () =>
-                                setState(() => _signaturePoints = <Offset?>[]),
-                            icon: const Icon(Icons.clear),
-                            label: const Text('Clear'),
-                          ),
-                        ],
-                      ),
-                      SignaturePad(
-                        points: _signaturePoints,
-                        onChanged: (next) =>
-                            setState(() => _signaturePoints = next),
-                      ),
-                      const SizedBox(height: 10),
-                      FilledButton(
-                        onPressed: _saving
-                            ? null
-                            : () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                setState(() => _saving = true);
-                                await ParentRepository().updateParentProfile(
-                                  contextData: widget.contextData,
-                                  uid: widget.uid,
-                                  changes: {
-                                    'parentContract': {
-                                      'accepted': _accepted,
-                                      'signedName': _signName.text.trim(),
-                                      'signaturePoints': _encodeSignaturePoints(
-                                        _signaturePoints,
-                                      ),
-                                      'signatureCaptured': _signaturePoints.any(
-                                        (p) => p != null,
-                                      ),
-                                      'signedAt': FieldValue.serverTimestamp(),
-                                    },
-                                  },
-                                );
-                                if (!mounted) return;
-                                setState(() => _saving = false);
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Signature saved.'),
-                                  ),
-                                );
-                              },
-                        child: const Text('Save Signature'),
-                      ),
-                    ],
+          children: [
+            _SectionCard(
+              title: 'Forms',
+              child: Row(
+                children: [
+                  FilledButton.icon(
+                    onPressed: _saving ? null : () => _openSignatureDialog(),
+                    icon: const Icon(Icons.draw_outlined),
+                    label: const Text('Add Signature'),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const _SectionCard(
-                  title: 'Pending Signature',
-                  child: Text('• Registration Form\n• Going Out Permit'),
-                ),
-                const SizedBox(height: 12),
-                const _SectionCard(
-                  title: 'Main Documents',
-                  child: Text(
-                    '• Contract\n• Registration\n• Emergency Contact Form\n• Medical Information',
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _signaturePoints.any((p) => p != null)
+                          ? 'Signature captured'
+                          : 'No signature yet',
+                      style: const TextStyle(color: Color(0xFF64748B)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                const _SectionCard(
-                  title: 'Signed Documents',
-                  child: Text('Completed documents will appear here.'),
-                ),
-              ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Pending Signature',
+              child: Column(
+                children: [
+                  _PendingDocRow(
+                    title: 'Registration Form',
+                    onSign: _saving ? null : _openSignatureDialog,
+                    onView: () => _showViewMessage('Registration Form'),
+                  ),
+                  const SizedBox(height: 10),
+                  _PendingDocRow(
+                    title: 'Going Out Permit',
+                    onSign: _saving ? null : _openSignatureDialog,
+                    onView: () => _showViewMessage('Going Out Permit'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Main Documents',
+              child: Column(
+                children: [
+                  _PendingDocRow(
+                    title: 'Contract',
+                    onSign: _saving ? null : _openSignatureDialog,
+                    onView: () => _showViewMessage('Contract'),
+                  ),
+                  const SizedBox(height: 10),
+                  _PendingDocRow(
+                    title: 'Emergency Contact Form',
+                    onSign: _saving ? null : _openSignatureDialog,
+                    onView: () => _showViewMessage('Emergency Contact Form'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Signed Documents',
+              child: Text('Completed and signed documents will appear here.'),
+            ),
+          ],
         );
       },
     );
+  }
+
+  Future<void> _openSignatureDialog() async {
+    final nameCtrl = TextEditingController(text: _signName.text);
+    var acceptedLocal = _accepted;
+    var pointsLocal = <Offset?>[..._signaturePoints];
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Signature'),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile(
+                      value: acceptedLocal,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('I accept the contract terms'),
+                      onChanged: (v) => setDialogState(() => acceptedLocal = v),
+                    ),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Signature Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Text('Sign with your finger'),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () =>
+                              setDialogState(() => pointsLocal = <Offset?>[]),
+                          icon: const Icon(Icons.clear),
+                          label: const Text('Clear'),
+                        ),
+                      ],
+                    ),
+                    SignaturePad(
+                      points: pointsLocal,
+                      onChanged: (next) =>
+                          setDialogState(() => pointsLocal = next),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          setState(() => _saving = true);
+                          await ParentRepository().updateParentProfile(
+                            contextData: widget.contextData,
+                            uid: widget.uid,
+                            changes: {
+                              'parentContract': {
+                                'accepted': acceptedLocal,
+                                'signedName': nameCtrl.text.trim(),
+                                'signaturePoints': _encodeSignaturePoints(
+                                  pointsLocal,
+                                ),
+                                'signatureCaptured': pointsLocal.any(
+                                  (p) => p != null,
+                                ),
+                                'signedAt': FieldValue.serverTimestamp(),
+                              },
+                            },
+                          );
+                          if (!mounted) return;
+                          setState(() {
+                            _saving = false;
+                            _accepted = acceptedLocal;
+                            _signName.text = nameCtrl.text.trim();
+                            _signaturePoints = pointsLocal;
+                          });
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Signature saved.')),
+                          );
+                        },
+                  child: const Text('Save Signature'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showViewMessage(String doc) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('View: $doc')));
   }
 
   List<Map<String, double?>> _encodeSignaturePoints(List<Offset?> points) {
@@ -1650,6 +1734,59 @@ class _FormsPageState extends State<FormsPage> {
       }
     }
     return out;
+  }
+}
+
+class _PendingDocRow extends StatelessWidget {
+  const _PendingDocRow({
+    required this.title,
+    required this.onSign,
+    required this.onView,
+  });
+
+  final String title;
+  final VoidCallback? onSign;
+  final VoidCallback onView;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Column(
+            children: [
+              SizedBox(
+                width: 88,
+                child: OutlinedButton(
+                  onPressed: onSign,
+                  child: const Text('Sign'),
+                ),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: 88,
+                child: OutlinedButton(
+                  onPressed: onView,
+                  child: const Text('View'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
