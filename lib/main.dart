@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.0+13';
+const _appVersion = '1.2.1+14';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
