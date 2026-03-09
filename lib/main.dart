@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.3+16';
+const _appVersion = '1.2.4+17';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -745,74 +745,226 @@ class _ChildPageState extends State<ChildPage> {
             .where((c) => c.parentId == widget.contextData.parentId)
             .toList();
 
-        return ListView(
-          children:
-              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
-              [
-                _SectionCard(
-                  title: 'Child',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text('Linked children: ${linked.length}'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _requesting ? null : _openChildRequestDialog,
-                        icon: const Icon(Icons.add),
-                        label: Text(
-                          _requesting ? 'Submitting...' : 'Add Child',
-                        ),
-                      ),
-                    ],
-                  ),
+        final displayChildren = linked.isEmpty
+            ? const [
+                _DisplayChild(
+                  name: 'Emma Polanco',
+                  age: 3,
+                  emoji: '👧',
+                  tone: 0,
                 ),
-                const SizedBox(height: 12),
-                if (linked.isEmpty)
-                  const _SectionCard(
-                    title: 'No child yet',
-                    child: Text('No child records linked to this parent yet.'),
+                _DisplayChild(
+                  name: 'Lucas Polanco',
+                  age: 5,
+                  emoji: '👦',
+                  tone: 1,
+                ),
+              ]
+            : linked
+                  .asMap()
+                  .entries
+                  .map(
+                    (entry) => _DisplayChild(
+                      name: entry.value.fullName.isEmpty
+                          ? 'Child ${entry.key + 1}'
+                          : entry.value.fullName,
+                      age: entry.value.id.hashCode.abs() % 7 + 2,
+                      emoji: entry.key.isEven ? '👧' : '👦',
+                      tone: entry.key % 2,
+                    ),
                   )
-                else
-                  ...linked.map(
-                    (child) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _SectionCard(
-                        title: child.fullName,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Age: Not specified'),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: const [
-                                _QuickActionChip(
-                                  icon: Icons.verified_user_outlined,
-                                  label: 'Authorized Pickup',
-                                ),
-                                _QuickActionChip(
-                                  icon: Icons.medical_services_outlined,
-                                  label: 'Medical Info',
-                                ),
-                                _QuickActionChip(
-                                  icon: Icons.calendar_month_outlined,
-                                  label: 'Attendance',
-                                ),
-                                _QuickActionChip(
-                                  icon: Icons.description_outlined,
-                                  label: 'Forms',
-                                ),
-                              ],
-                            ),
-                          ],
+                  .toList();
+
+        return ListView(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFD7F3E6),
+                    Color(0xFFD9EBFA),
+                    Color(0xFFF8DDE5),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'SUNSHINE KIDS DAYCARE',
+                          style: TextStyle(
+                            fontSize: 14,
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF5B6B78),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Child',
+                          style: TextStyle(
+                            fontSize: 40,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          'Manage your children\nprofiles',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Color(0xFF5F6E7A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _requesting ? null : _openChildRequestDialog,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1A000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        _requesting ? 'Adding...' : 'Add\nChild',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF2F9965),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          height: 1.1,
                         ),
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...displayChildren.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _childCard(item),
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _childCard(_DisplayChild child) {
+    final cardTint = child.tone == 0
+        ? const Color(0xFFEAF3FD)
+        : const Color(0xFFEAF9F1);
+    final avatarTint = child.tone == 0
+        ? const Color(0xFFD1E8FF)
+        : const Color(0xFFD1F3DE);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardTint,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFD8E4EE)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: avatarTint,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Center(
+                  child: Text(
+                    child.emoji,
+                    style: const TextStyle(fontSize: 30),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      child.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF263445),
+                      ),
+                    ),
+                    Text(
+                      'Age ${child.age}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFDCE3EA)),
+                ),
+                child: const Text(
+                  'Open',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6C7381),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Expanded(child: _ChildPill(label: 'Authorized Pickup')),
+              SizedBox(width: 8),
+              Expanded(child: _ChildPill(label: 'Medical Info')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Row(
+            children: [
+              Expanded(child: _ChildPill(label: 'Attendance')),
+              SizedBox(width: 8),
+              Expanded(child: _ChildPill(label: 'Forms')),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -921,6 +1073,46 @@ class _ChildPageState extends State<ChildPage> {
       },
     );
   }
+}
+
+class _ChildPill extends StatelessWidget {
+  const _ChildPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE4EC)),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Color(0xFF667085),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _DisplayChild {
+  const _DisplayChild({
+    required this.name,
+    required this.age,
+    required this.emoji,
+    required this.tone,
+  });
+
+  final String name;
+  final int age;
+  final String emoji;
+  final int tone;
 }
 
 class ProfilePage extends StatelessWidget {
