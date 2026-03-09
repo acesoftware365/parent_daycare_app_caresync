@@ -294,138 +294,145 @@ class _HomePageState extends State<HomePage> {
                 : null;
 
             return ListView(
-              children: [
-                _SectionCard(
-                  title: 'Child Status',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Daycare: $daycareName'),
-                      const SizedBox(height: 6),
-                      Text(
-                        selected == null
-                            ? 'No child linked yet.'
-                            : 'Child: ${selected.fullName} | Status: Checked In',
+              children:
+                  const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
+                  [
+                    _SectionCard(
+                      title: 'Child Status',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Daycare: $daycareName'),
+                          const SizedBox(height: 6),
+                          Text(
+                            selected == null
+                                ? 'No child linked yet.'
+                                : 'Child: ${selected.fullName} | Status: Checked In',
+                          ),
+                          const SizedBox(height: 4),
+                          const Text('Check-in time: 8:10 AM'),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      const Text('Check-in time: 8:10 AM'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'I\'m on my way',
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _EtaChoice(
-                        label: '5 min',
-                        selected: _eta == 5,
-                        onTap: () => setState(() => _eta = 5),
+                    ),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      title: 'I\'m on my way',
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _EtaChoice(
+                            label: '5 min',
+                            selected: _eta == 5,
+                            onTap: () => setState(() => _eta = 5),
+                          ),
+                          _EtaChoice(
+                            label: '10 min',
+                            selected: _eta == 10,
+                            onTap: () => setState(() => _eta = 10),
+                          ),
+                          _EtaChoice(
+                            label: '15 min',
+                            selected: _eta == 15,
+                            onTap: () => setState(() => _eta = 15),
+                          ),
+                          FilledButton.icon(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'ETA $_eta min sent to daycare.',
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.send_outlined),
+                            label: const Text('Send to daycare'),
+                          ),
+                        ],
                       ),
-                      _EtaChoice(
-                        label: '10 min',
-                        selected: _eta == 10,
-                        onTap: () => setState(() => _eta = 10),
+                    ),
+                    const SizedBox(height: 12),
+                    const _SectionCard(
+                      title: 'Today Summary',
+                      child: Text(
+                        'Meals: Breakfast, Lunch\nNaps: 1\nMood: Happy\nAttendance: Present',
                       ),
-                      _EtaChoice(
-                        label: '15 min',
-                        selected: _eta == 15,
-                        onTap: () => setState(() => _eta = 15),
+                    ),
+                    const SizedBox(height: 12),
+                    const _SectionCard(
+                      title: 'Latest Update',
+                      child: Text(
+                        'Teacher note: Great participation in reading time.\nMedia: Pending upload.',
                       ),
-                      FilledButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('ETA $_eta min sent to daycare.'),
+                    ),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      title: 'Quick Actions',
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: const [
+                          _QuickActionChip(
+                            icon: Icons.event_busy_outlined,
+                            label: 'Report Absence',
+                          ),
+                          _QuickActionChip(
+                            icon: Icons.call_outlined,
+                            label: 'Call Daycare',
+                          ),
+                          _QuickActionChip(
+                            icon: Icons.description_outlined,
+                            label: 'View Forms',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      title: 'Daycare Feedback',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            children: List.generate(5, (i) {
+                              final value = i + 1;
+                              return IconButton(
+                                onPressed: () =>
+                                    setState(() => _rating = value),
+                                icon: Icon(
+                                  value <= _rating
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: const Color(0xFFF59E0B),
+                                ),
+                              );
+                            }),
+                          ),
+                          TextField(
+                            controller: _feedbackCtrl,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              hintText: 'Write your feedback...',
+                              border: OutlineInputBorder(),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.send_outlined),
-                        label: const Text('Send to daycare'),
+                          ),
+                          const SizedBox(height: 8),
+                          FilledButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Feedback submitted.'),
+                                ),
+                              );
+                            },
+                            child: const Text('Submit Feedback'),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const _SectionCard(
-                  title: 'Today Summary',
-                  child: Text(
-                    'Meals: Breakfast, Lunch\nNaps: 1\nMood: Happy\nAttendance: Present',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const _SectionCard(
-                  title: 'Latest Update',
-                  child: Text(
-                    'Teacher note: Great participation in reading time.\nMedia: Pending upload.',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'Quick Actions',
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: const [
-                      _QuickActionChip(
-                        icon: Icons.event_busy_outlined,
-                        label: 'Report Absence',
-                      ),
-                      _QuickActionChip(
-                        icon: Icons.call_outlined,
-                        label: 'Call Daycare',
-                      ),
-                      _QuickActionChip(
-                        icon: Icons.description_outlined,
-                        label: 'View Forms',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _SectionCard(
-                  title: 'Daycare Feedback',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        children: List.generate(5, (i) {
-                          final value = i + 1;
-                          return IconButton(
-                            onPressed: () => setState(() => _rating = value),
-                            icon: Icon(
-                              value <= _rating ? Icons.star : Icons.star_border,
-                              color: const Color(0xFFF59E0B),
-                            ),
-                          );
-                        }),
-                      ),
-                      TextField(
-                        controller: _feedbackCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          hintText: 'Write your feedback...',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Feedback submitted.'),
-                            ),
-                          );
-                        },
-                        child: const Text('Submit Feedback'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
             );
           },
         );
@@ -465,65 +472,71 @@ class _ChildPageState extends State<ChildPage> {
             .toList();
 
         return ListView(
-          children: [
-            _SectionCard(
-              title: 'Child',
-              child: Row(
-                children: [
-                  Expanded(child: Text('Linked children: ${linked.length}')),
-                  FilledButton.icon(
-                    onPressed: _requesting ? null : _openChildRequestDialog,
-                    icon: const Icon(Icons.add),
-                    label: Text(_requesting ? 'Submitting...' : 'Add Child'),
+          children:
+              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
+              [
+                _SectionCard(
+                  title: 'Child',
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Linked children: ${linked.length}'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _requesting ? null : _openChildRequestDialog,
+                        icon: const Icon(Icons.add),
+                        label: Text(
+                          _requesting ? 'Submitting...' : 'Add Child',
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (linked.isEmpty)
-              const _SectionCard(
-                title: 'No child yet',
-                child: Text('No child records linked to this parent yet.'),
-              )
-            else
-              ...linked.map(
-                (child) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _SectionCard(
-                    title: child.fullName,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Age: Not specified'),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: const [
-                            _QuickActionChip(
-                              icon: Icons.verified_user_outlined,
-                              label: 'Authorized Pickup',
-                            ),
-                            _QuickActionChip(
-                              icon: Icons.medical_services_outlined,
-                              label: 'Medical Info',
-                            ),
-                            _QuickActionChip(
-                              icon: Icons.calendar_month_outlined,
-                              label: 'Attendance',
-                            ),
-                            _QuickActionChip(
-                              icon: Icons.description_outlined,
-                              label: 'Forms',
+                ),
+                const SizedBox(height: 12),
+                if (linked.isEmpty)
+                  const _SectionCard(
+                    title: 'No child yet',
+                    child: Text('No child records linked to this parent yet.'),
+                  )
+                else
+                  ...linked.map(
+                    (child) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _SectionCard(
+                        title: child.fullName,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Age: Not specified'),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: const [
+                                _QuickActionChip(
+                                  icon: Icons.verified_user_outlined,
+                                  label: 'Authorized Pickup',
+                                ),
+                                _QuickActionChip(
+                                  icon: Icons.medical_services_outlined,
+                                  label: 'Medical Info',
+                                ),
+                                _QuickActionChip(
+                                  icon: Icons.calendar_month_outlined,
+                                  label: 'Attendance',
+                                ),
+                                _QuickActionChip(
+                                  icon: Icons.description_outlined,
+                                  label: 'Forms',
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
         );
       },
     );
@@ -655,71 +668,74 @@ class ProfilePage extends StatelessWidget {
             : '$firstName $lastName'.trim();
 
         return ListView(
-          children: [
-            _SectionCard(
-              title: 'Parent Information',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Name: $fullName'),
-                  Text('Role: Parent'),
-                  Text('Phone: ${(data['phone'] ?? '').toString()}'),
-                  Text('Email: ${(data['email'] ?? '').toString()}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Authorized Pickup',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (data['pickupNotes'] ?? 'No pickup notes yet.').toString(),
+          children:
+              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
+              [
+                _SectionCard(
+                  title: 'Parent Information',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Name: $fullName'),
+                      Text('Role: Parent'),
+                      Text('Phone: ${(data['phone'] ?? '').toString()}'),
+                      Text('Email: ${(data['email'] ?? '').toString()}'),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  FilledButton.tonal(
-                    onPressed: () {},
-                    child: const Text('Add Authorized Pickup'),
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Authorized Pickup',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (data['pickupNotes'] ?? 'No pickup notes yet.')
+                            .toString(),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.tonal(
+                        onPressed: () {},
+                        child: const Text('Add Authorized Pickup'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Emergency Contacts',
-              child: Text(
-                'Name: ${(data['emergencyContactName'] ?? '').toString()}\n'
-                'Phone: ${(data['emergencyContactPhone'] ?? '').toString()}',
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Settings',
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: const [
-                  _QuickActionChip(
-                    icon: Icons.language_outlined,
-                    label: 'Language',
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Emergency Contacts',
+                  child: Text(
+                    'Name: ${(data['emergencyContactName'] ?? '').toString()}\n'
+                    'Phone: ${(data['emergencyContactPhone'] ?? '').toString()}',
                   ),
-                  _QuickActionChip(
-                    icon: Icons.notifications_outlined,
-                    label: 'Notifications',
+                ),
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: 'Settings',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const [
+                      _QuickActionChip(
+                        icon: Icons.language_outlined,
+                        label: 'Language',
+                      ),
+                      _QuickActionChip(
+                        icon: Icons.notifications_outlined,
+                        label: 'Notifications',
+                      ),
+                      _QuickActionChip(
+                        icon: Icons.privacy_tip_outlined,
+                        label: 'Privacy Policy',
+                      ),
+                      _QuickActionChip(
+                        icon: Icons.info_outline,
+                        label: 'App Version',
+                      ),
+                    ],
                   ),
-                  _QuickActionChip(
-                    icon: Icons.privacy_tip_outlined,
-                    label: 'Privacy Policy',
-                  ),
-                  _QuickActionChip(
-                    icon: Icons.info_outline,
-                    label: 'App Version',
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
         );
       },
     );
@@ -769,96 +785,100 @@ class _FormsPageState extends State<FormsPage> {
         }
 
         return ListView(
-          children: [
-            _SectionCard(
-              title: 'Add Signature',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SwitchListTile(
-                    value: _accepted,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('I accept the contract terms'),
-                    onChanged: (v) => setState(() => _accepted = v),
-                  ),
-                  TextField(
-                    controller: _signName,
-                    decoration: const InputDecoration(
-                      labelText: 'Signature Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
+          children:
+              const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
+              [
+                _SectionCard(
+                  title: 'Add Signature',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Signature pad'),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _signaturePoints = <Offset?>[]),
-                        icon: const Icon(Icons.clear),
-                        label: const Text('Clear'),
+                      SwitchListTile(
+                        value: _accepted,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('I accept the contract terms'),
+                        onChanged: (v) => setState(() => _accepted = v),
+                      ),
+                      TextField(
+                        controller: _signName,
+                        decoration: const InputDecoration(
+                          labelText: 'Signature Name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Text('Signature pad'),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _signaturePoints = <Offset?>[]),
+                            icon: const Icon(Icons.clear),
+                            label: const Text('Clear'),
+                          ),
+                        ],
+                      ),
+                      SignaturePad(
+                        points: _signaturePoints,
+                        onChanged: (next) =>
+                            setState(() => _signaturePoints = next),
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton(
+                        onPressed: _saving
+                            ? null
+                            : () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                setState(() => _saving = true);
+                                await ParentRepository().updateParentProfile(
+                                  contextData: widget.contextData,
+                                  uid: widget.uid,
+                                  changes: {
+                                    'parentContract': {
+                                      'accepted': _accepted,
+                                      'signedName': _signName.text.trim(),
+                                      'signaturePoints': _encodeSignaturePoints(
+                                        _signaturePoints,
+                                      ),
+                                      'signatureCaptured': _signaturePoints.any(
+                                        (p) => p != null,
+                                      ),
+                                      'signedAt': FieldValue.serverTimestamp(),
+                                    },
+                                  },
+                                );
+                                if (!mounted) return;
+                                setState(() => _saving = false);
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Signature saved.'),
+                                  ),
+                                );
+                              },
+                        child: const Text('Save Signature'),
                       ),
                     ],
                   ),
-                  SignaturePad(
-                    points: _signaturePoints,
-                    onChanged: (next) =>
-                        setState(() => _signaturePoints = next),
+                ),
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Pending Signature',
+                  child: Text('• Registration Form\n• Going Out Permit'),
+                ),
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Main Documents',
+                  child: Text(
+                    '• Contract\n• Registration\n• Emergency Contact Form\n• Medical Information',
                   ),
-                  const SizedBox(height: 10),
-                  FilledButton(
-                    onPressed: _saving
-                        ? null
-                        : () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            setState(() => _saving = true);
-                            await ParentRepository().updateParentProfile(
-                              contextData: widget.contextData,
-                              uid: widget.uid,
-                              changes: {
-                                'parentContract': {
-                                  'accepted': _accepted,
-                                  'signedName': _signName.text.trim(),
-                                  'signaturePoints': _encodeSignaturePoints(
-                                    _signaturePoints,
-                                  ),
-                                  'signatureCaptured': _signaturePoints.any(
-                                    (p) => p != null,
-                                  ),
-                                  'signedAt': FieldValue.serverTimestamp(),
-                                },
-                              },
-                            );
-                            if (!mounted) return;
-                            setState(() => _saving = false);
-                            messenger.showSnackBar(
-                              const SnackBar(content: Text('Signature saved.')),
-                            );
-                          },
-                    child: const Text('Save Signature'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Pending Signature',
-              child: Text('• Registration Form\n• Going Out Permit'),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Main Documents',
-              child: Text(
-                '• Contract\n• Registration\n• Emergency Contact Form\n• Medical Information',
-              ),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Signed Documents',
-              child: Text('Completed documents will appear here.'),
-            ),
-          ],
+                ),
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Signed Documents',
+                  child: Text('Completed documents will appear here.'),
+                ),
+              ],
         );
       },
     );
@@ -899,42 +919,82 @@ class BillingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      children: [
-        _SectionCard(
-          title: 'Current Balance',
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  r'$420.00 due',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                ),
+      children:
+          const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
+          [
+            _SectionCard(
+              title: 'Current Balance',
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      r'$420.00 due',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  FilledButton(onPressed: () {}, child: const Text('Pay Now')),
+                ],
               ),
-              FilledButton(onPressed: () {}, child: const Text('Pay Now')),
-            ],
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Upcoming Invoice',
+              child: Text('Period: Mar 1 - Mar 31\nAmount: \$420.00'),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Payment Methods',
+              child: Text(
+                'Default: Visa •••• 2345\nAdd / Edit methods available.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Recent Payments',
+              child: Text('• Feb 01 - \$420.00\n• Jan 01 - \$420.00'),
+            ),
+            const SizedBox(height: 12),
+            const _SectionCard(
+              title: 'Receipts & Tax Records',
+              child: Text('Downloadable records will appear here.'),
+            ),
+          ],
+    );
+  }
+}
+
+class _DisplayOnlyBanner extends StatelessWidget {
+  const _DisplayOnlyBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4D9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE9CC79)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF8A5B00)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Display only: demo UI. Real data/actions will be connected later.',
+              style: TextStyle(
+                color: Color(0xFF7A4B00),
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        const _SectionCard(
-          title: 'Upcoming Invoice',
-          child: Text('Period: Mar 1 - Mar 31\nAmount: \$420.00'),
-        ),
-        const SizedBox(height: 12),
-        const _SectionCard(
-          title: 'Payment Methods',
-          child: Text('Default: Visa •••• 2345\nAdd / Edit methods available.'),
-        ),
-        const SizedBox(height: 12),
-        const _SectionCard(
-          title: 'Recent Payments',
-          child: Text('• Feb 01 - \$420.00\n• Jan 01 - \$420.00'),
-        ),
-        const SizedBox(height: 12),
-        const _SectionCard(
-          title: 'Receipts & Tax Records',
-          child: Text('Downloadable records will appear here.'),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
