@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.6+19';
+const _appVersion = '1.2.7+20';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -1796,49 +1796,249 @@ class BillingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      children:
-          const [_DisplayOnlyBanner(), SizedBox(height: 12)] +
-          [
-            _SectionCard(
-              title: 'Current Balance',
-              child: Row(
+      children: [
+        const _DisplayOnlyBanner(),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8E2B9)],
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: Center(
+                    child: Text('💳', style: TextStyle(fontSize: 26)),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SUNSHINE KIDS DAYCARE',
+                      style: TextStyle(
+                        fontSize: 14,
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF607080),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Billing',
+                      style: TextStyle(
+                        fontSize: 40,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Tuition, invoices, receipts, and\npayment methods',
+                      style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F7EF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFCBE8D7)),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CURRENT BALANCE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Color(0xFF2F7D64),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      r'$325.00',
+                      style: TextStyle(
+                        fontSize: 44,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Due on March 15',
+                      style: TextStyle(color: Color(0xFF607080)),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2F9965),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                ),
+                onPressed: () {},
+                child: const Text(
+                  'Pay Now',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD8E2EC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
                   const Expanded(
                     child: Text(
-                      r'$420.00 due',
+                      'UPCOMING INVOICE',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Color(0xFF3C4A5B),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8E7B5),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'Pending',
+                      style: TextStyle(
+                        color: Color(0xFF9B6A21),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  FilledButton(onPressed: () {}, child: const Text('Pay Now')),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Upcoming Invoice',
-              child: Text('Period: Mar 1 - Mar 31\nAmount: \$420.00'),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Payment Methods',
-              child: Text(
-                'Default: Visa •••• 2345\nAdd / Edit methods available.',
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F3DF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Weekly Tuition',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF344155),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Invoice #1048 · March 10 -\nMarch 14',
+                            style: TextStyle(color: Color(0xFF607080)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      r'$325.00',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 28,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Recent Payments',
-              child: Text('• Feb 01 - \$420.00\n• Jan 01 - \$420.00'),
-            ),
-            const SizedBox(height: 12),
-            const _SectionCard(
-              title: 'Receipts & Tax Records',
-              child: Text('Downloadable records will appear here.'),
-            ),
-          ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD8E2EC)),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PAYMENT METHODS',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  color: Color(0xFF3C4A5B),
+                ),
+              ),
+              SizedBox(height: 12),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFDCE8F4),
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text(
+                    'Visa ending in 4242 · Default\npayment method',
+                    style: TextStyle(
+                      color: Color(0xFF455569),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
