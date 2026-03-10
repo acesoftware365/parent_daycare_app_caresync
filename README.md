@@ -4,7 +4,9 @@ Parent Daycare App Caresync
 
 ## Latest Release
 
-- Version `1.2.25+38`
+- Version `1.2.26+39`
+- Signed parent documents now also save a real PDF file in Firebase Storage under `tenants/{tenantId}/parent_forms/{parentId}/...`
+- Firestore now stores PDF metadata for the daycare contract and each child photo permission so backoffice can reference the saved file later
 - `View Document` now opens a printable PDF preview for the daycare contract and each photo permission, including parent info, written terms, and the stored signature when available
 - Added in-app PDF preview and print/share support for signed parent documents
 - Updated `Pending Signature` cards to use `Sign Document` and `View Document` actions like the main permission cards

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -13,7 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'form_document_pdf.dart';
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.25+38';
+const _appVersion = '1.2.26+39';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,18 @@ class ParentDaycareApp extends StatelessWidget {
       home: const AuthGate(),
     );
   }
+}
+
+class UploadedParentFormFile {
+  const UploadedParentFormFile({
+    required this.url,
+    required this.path,
+    required this.fileName,
+  });
+
+  final String url;
+  final String path;
+  final String fileName;
 }
 
 class AuthGate extends StatelessWidget {
@@ -2106,7 +2119,9 @@ class _FormsPageState extends State<FormsPage> {
                       backgroundColor: const Color(0xFF3FB37B),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    onPressed: _saving ? null : () => _openSignatureDialog(),
+                    onPressed: _saving
+                        ? null
+                        : () => _openSignatureDialog(data),
                     child: const Text(
                       'Save Signature',
                       style: TextStyle(
@@ -2279,7 +2294,7 @@ class _FormsPageState extends State<FormsPage> {
             title: 'Daycare Contract',
             subtitle: 'General daycare terms and parent agreement',
             color: const Color(0xFFF8F3DF),
-            onSign: _saving ? null : _openSignatureDialog,
+            onSign: _saving ? null : () => _openSignatureDialog(parentData),
             onView: _saving
                 ? null
                 : () => _openSavedContractSignatureViewer(parentData),
@@ -2352,7 +2367,7 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
-  Future<void> _openSignatureDialog() async {
+  Future<void> _openSignatureDialog(Map<String, dynamic> parentData) async {
     final nameCtrl = TextEditingController(text: _signName.text);
     var acceptedLocal = _accepted;
     var pointsLocal = <Offset?>[..._signaturePoints];
@@ -2466,6 +2481,57 @@ class _FormsPageState extends State<FormsPage> {
                                   ),
                                   signatureCaptured: signatureCaptured,
                                 );
+                            try {
+                              final pdfBytes =
+                                  await FormPdfBuilder.buildContractPdf(
+                                    parentName:
+                                        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+                                            .trim(),
+                                    parentEmail: (parentData['email'] ?? '')
+                                        .toString(),
+                                    parentPhone: (parentData['phone'] ?? '')
+                                        .toString(),
+                                    parentAddress:
+                                        [
+                                              (parentData['addressLine1'] ?? '')
+                                                  .toString(),
+                                              (parentData['city'] ?? '')
+                                                  .toString(),
+                                              (parentData['state'] ?? '')
+                                                  .toString(),
+                                              (parentData['zip'] ?? '')
+                                                  .toString(),
+                                            ]
+                                            .where(
+                                              (part) => part.trim().isNotEmpty,
+                                            )
+                                            .join(', '),
+                                    signedName: trimmedName,
+                                    signed: acceptedLocal,
+                                    signedAt: DateTime.now(),
+                                    signaturePoints: _encodeSignaturePoints(
+                                      pointsLocal,
+                                    ),
+                                  );
+                              final upload = await ParentRepository()
+                                  .uploadParentFormPdf(
+                                    tenantId: widget.contextData.tenantId,
+                                    parentId: widget.contextData.parentId,
+                                    documentKey: 'daycare_contract',
+                                    fileName: 'daycare_contract.pdf',
+                                    bytes: pdfBytes,
+                                  );
+                              await ParentRepository()
+                                  .saveParentContractPdfMetadata(
+                                    contextData: widget.contextData,
+                                    uid: widget.uid,
+                                    pdfUrl: upload.url,
+                                    pdfPath: upload.path,
+                                    pdfName: upload.fileName,
+                                  );
+                            } on FirebaseException {
+                              // Keep the signature save successful even if the PDF upload fails.
+                            }
                             if (!mounted) return;
                             setState(() {
                               _accepted = acceptedLocal;
@@ -2794,6 +2860,48 @@ class _FormsPageState extends State<FormsPage> {
                                               ),
                                           signatureCaptured: true,
                                         );
+                                    try {
+                                      final pdfBytes =
+                                          await FormPdfBuilder.buildPhotoPermissionPdf(
+                                            parentName: parentName,
+                                            parentEmail: parentEmail,
+                                            parentPhone: parentPhone,
+                                            parentAddress: address,
+                                            childName: child.fullName.isEmpty
+                                                ? 'Child'
+                                                : child.fullName,
+                                            signedName: signedName,
+                                            signed: true,
+                                            signedAt: DateTime.now(),
+                                            signaturePoints:
+                                                _encodeSignaturePoints(
+                                                  pointsLocal,
+                                                ),
+                                          );
+                                      final upload = await ParentRepository()
+                                          .uploadParentFormPdf(
+                                            tenantId:
+                                                widget.contextData.tenantId,
+                                            parentId:
+                                                widget.contextData.parentId,
+                                            documentKey:
+                                                'photo_permission_${child.id}',
+                                            fileName:
+                                                '${child.fullName.isEmpty ? child.id : child.fullName.replaceAll(' ', '_').toLowerCase()}_photo_permission.pdf',
+                                            bytes: pdfBytes,
+                                          );
+                                      await ParentRepository()
+                                          .savePhotoPermissionPdfMetadata(
+                                            contextData: widget.contextData,
+                                            uid: widget.uid,
+                                            childId: child.id,
+                                            pdfUrl: upload.url,
+                                            pdfPath: upload.path,
+                                            pdfName: upload.fileName,
+                                          );
+                                    } on FirebaseException {
+                                      // Keep the signed permission even if PDF upload fails.
+                                    }
                                     if (!mounted) return;
                                     if (dialogContext.mounted) {
                                       Navigator.of(dialogContext).pop();
@@ -4213,6 +4321,7 @@ class ChildRecordLite {
 
 class ParentRepository {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
+  FirebaseStorage get _storage => FirebaseStorage.instance;
   static const _projectId = 'liisgo-daycare-system';
 
   Future<ParentContext?> resolveParentContext(String authUid) async {
@@ -4496,6 +4605,73 @@ class ParentRepository {
         signatureCaptured: signatureCaptured,
       );
     }
+  }
+
+  Future<UploadedParentFormFile> uploadParentFormPdf({
+    required String tenantId,
+    required String parentId,
+    required String documentKey,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final safeName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final path =
+        'tenants/$tenantId/parent_forms/$parentId/$documentKey/$safeName';
+    final ref = _storage.ref(path);
+    await ref.putData(
+      Uint8List.fromList(bytes),
+      SettableMetadata(contentType: 'application/pdf'),
+    );
+    final url = await ref.getDownloadURL();
+    return UploadedParentFormFile(url: url, path: path, fileName: safeName);
+  }
+
+  Future<void> saveParentContractPdfMetadata({
+    required ParentContext contextData,
+    required String uid,
+    required String pdfUrl,
+    required String pdfPath,
+    required String pdfName,
+  }) async {
+    await _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('parents')
+        .doc(contextData.parentId)
+        .set({
+          'parentContract.pdfUrl': pdfUrl,
+          'parentContract.pdfPath': pdfPath,
+          'parentContract.pdfName': pdfName,
+          'parentContract.pdfGeneratedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': uid,
+          'sourceApp': 'parent_daycare_app',
+        }, SetOptions(merge: true));
+  }
+
+  Future<void> savePhotoPermissionPdfMetadata({
+    required ParentContext contextData,
+    required String uid,
+    required String childId,
+    required String pdfUrl,
+    required String pdfPath,
+    required String pdfName,
+  }) async {
+    await _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(childId)
+        .collection('photo_permissions')
+        .doc(contextData.parentId)
+        .set({
+          'pdfUrl': pdfUrl,
+          'pdfPath': pdfPath,
+          'pdfName': pdfName,
+          'pdfGeneratedAt': FieldValue.serverTimestamp(),
+          'updatedByUid': uid,
+          'sourceApp': 'parent_daycare_app',
+        }, SetOptions(merge: true));
   }
 
   Future<Map<String, dynamic>> loadPhotoPermissionDocument({
