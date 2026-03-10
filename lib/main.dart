@@ -1,15 +1,19 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'form_document_pdf.dart';
 import 'firebase_options.dart';
 
-const _appVersion = '1.2.8+21';
+const _appVersion = '1.2.25+38';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -179,6 +183,8 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWide = screenWidth >= 900;
     final pages = [
       HomePage(contextData: widget.contextData, uid: widget.user.uid),
       ChildPage(contextData: widget.contextData, uid: widget.user.uid),
@@ -189,37 +195,83 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
 
     const titles = ['Home', 'Child', 'Profile', 'Form', 'Billing'];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('CareSync Parent App'),
-        actions: [
-          TextButton.icon(
-            onPressed: () => FirebaseAuth.instance.signOut(),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Logout'),
+    if (!isWide) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('CareSync Parent App'),
+          actions: [
+            TextButton.icon(
+              onPressed: () => FirebaseAuth.instance.signOut(),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Logout'),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: pages[_index],
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(padding: const EdgeInsets.all(14), child: pages[_index]),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (value) => setState(() => _index = value),
-            destinations: List.generate(
-              titles.length,
-              (i) => NavigationDestination(
-                icon: Icon(_iconFor(i)),
-                label: titles[i],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (value) => setState(() => _index = value),
+              destinations: List.generate(
+                titles.length,
+                (i) => NavigationDestination(
+                  icon: Icon(_iconFor(i)),
+                  label: titles[i],
+                ),
               ),
             ),
+            const _VersionBar(),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF9F2E8), Color(0xFFF4F9F6), Color(0xFFF7F8FC)],
           ),
-          const _VersionBar(),
-        ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                _DesktopNavRail(
+                  selectedIndex: _index,
+                  titles: titles,
+                  iconFor: _iconFor,
+                  onDestinationSelected: (value) =>
+                      setState(() => _index = value),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _DesktopTopBar(
+                        title: titles[_index],
+                        onLogout: () => FirebaseAuth.instance.signOut(),
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(child: pages[_index]),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -242,6 +294,259 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
   }
 }
 
+class _DesktopNavRail extends StatelessWidget {
+  const _DesktopNavRail({
+    required this.selectedIndex,
+    required this.titles,
+    required this.iconFor,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final List<String> titles;
+  final IconData Function(int index) iconFor;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 248,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFFE6DDD2)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 22, 18, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFDBF1E5), Color(0xFFDDEBFB)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                      child: Center(
+                        child: Text('🏫', style: TextStyle(fontSize: 22)),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'CareSync',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                            color: Color(0xFF203241),
+                          ),
+                        ),
+                        Text(
+                          'Parent portal',
+                          style: TextStyle(color: Color(0xFF637285)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: ListView.separated(
+                itemCount: titles.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final selected = index == selectedIndex;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => onDestinationSelected(index),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? const Color(0xFF2B6E6A)
+                            : const Color(0xFFF8F7F4),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            iconFor(index),
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF5C6675),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            titles[index],
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const _VersionBar(compact: true),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopTopBar extends StatelessWidget {
+  const _DesktopTopBar({required this.title, required this.onLogout});
+
+  final String title;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFE8DDD2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sunshine Kids Daycare',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Color(0xFF708090),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResponsiveContentFrame extends StatelessWidget {
+  const _ResponsiveContentFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = screenWidth >= 1280 ? 8.0 : 0.0;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _ResponsiveTwoColumn extends StatelessWidget {
+  const _ResponsiveTwoColumn({
+    required this.mainChildren,
+    required this.sideChildren,
+  });
+
+  final List<Widget> mainChildren;
+  final List<Widget> sideChildren;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: _ResponsiveContentFrame(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 8,
+              child: Column(children: _withSpacing(mainChildren)),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              flex: 5,
+              child: Column(children: _withSpacing(sideChildren)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _withSpacing(List<Widget> children) {
+    final out = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      out.add(children[i]);
+      if (i != children.length - 1) {
+        out.add(const SizedBox(height: 18));
+      }
+    }
+    return out;
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.contextData, required this.uid});
 
@@ -256,6 +561,7 @@ class _HomePageState extends State<HomePage> {
   int _eta = 10;
   int _rating = 0;
   final _feedbackCtrl = TextEditingController();
+  String? _selectedChildId;
 
   @override
   void dispose() {
@@ -283,370 +589,564 @@ class _HomePageState extends State<HomePage> {
             final linkedChildren = children
                 .where((c) => c.parentId == widget.contextData.parentId)
                 .toList();
-            final selected = linkedChildren.isNotEmpty
-                ? linkedChildren.first
-                : null;
+            final selected = _resolveSelectedChild(linkedChildren);
             final childName = selected?.fullName.isNotEmpty == true
                 ? selected!.fullName
                 : 'Emma Polanco';
+            final hero = _homeHero(
+              daycareName,
+              childName,
+              linkedChildren,
+              selected?.id,
+            );
+            final etaCard = _homeEtaCard(context, selected, childName, parent);
+            final summaryCard = _homeSummaryCard(selected);
+            final latestCard = _homeLatestCard(selected);
+            final quickActionsCard = _homeQuickActionsCard();
+            final feedbackCard = _homeFeedbackCard(context, childName);
+            final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-            return ListView(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFBEE3FF),
-                        Color(0xFFDFF5E6),
-                        Color(0xFFF9DDE6),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              daycareName,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                letterSpacing: 1,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF5D6B7A),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              childName,
-                              style: const TextStyle(
-                                fontSize: 43,
-                                height: 1,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1F2A3D),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Checked in today',
-                              style: TextStyle(
-                                color: Color(0xFF5E6D79),
-                                fontSize: 18,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x1A000000),
-                              blurRadius: 10,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'STATUS',
-                              style: TextStyle(
-                                fontSize: 12,
-                                letterSpacing: 1,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF6B7280),
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '● Checked In',
-                              style: TextStyle(
-                                color: Color(0xFF239B5A),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '8:12 AM',
-                              style: TextStyle(color: Color(0xFF6B7280)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F7EF),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFCFEAD7)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "🚗 I'M ON MY WAY",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 20,
-                          color: Color(0xFF355E52),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Select arrival time',
-                        style: TextStyle(
-                          color: Color(0xFF51697A),
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _EtaChoice(
-                            label: '5 min',
-                            selected: _eta == 5,
-                            onTap: () => setState(() => _eta = 5),
-                          ),
-                          const SizedBox(width: 8),
-                          _EtaChoice(
-                            label: '10 min',
-                            selected: _eta == 10,
-                            onTap: () => setState(() => _eta = 10),
-                          ),
-                          const SizedBox(width: 8),
-                          _EtaChoice(
-                            label: '15 min',
-                            selected: _eta == 15,
-                            onTap: () => setState(() => _eta = 15),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF2F9965),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('ETA $_eta min sent to daycare.'),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Send to daycare',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SectionCard(
-                  title: 'TODAY SUMMARY',
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: const [
-                      _SummaryChip(
-                        label: '🍎 Breakfast',
-                        color: Color(0xFFE7F5EE),
-                      ),
-                      _SummaryChip(
-                        label: '😴 Nap Time',
-                        color: Color(0xFFEDEBFA),
-                      ),
-                      _SummaryChip(
-                        label: '☀️ Outdoor Play',
-                        color: Color(0xFFF7F2E1),
-                      ),
-                      _SummaryChip(
-                        label: '🍼 Diaper Change',
-                        color: Color(0xFFF7E8EB),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SectionCard(
-                  title: 'LATEST UPDATE',
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFDCEBFB), Color(0xFFF8E2EC)],
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 170,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.camera_alt_outlined,
-                              size: 38,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Emma painting with friends',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Teacher note: Emma enjoyed art time and shared materials nicely with the group.',
-                          style: TextStyle(
-                            color: Color(0xFF4B5563),
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SectionCard(
-                  title: 'QUICK ACTIONS',
-                  child: Column(
-                    children: [
-                      Row(
-                        children: const [
-                          Expanded(
-                            child: _ActionButtonCard(
-                              label: 'Report\nAbsence',
-                              bg: Color(0xFFD9EAFA),
-                              fg: Color(0xFF335F8A),
-                            ),
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: _ActionButtonCard(
-                              label: 'Call Daycare',
-                              bg: Color(0xFFF6EAB8),
-                              fg: Color(0xFF92601D),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const _ActionButtonCard(
-                        label: 'View Forms',
-                        bg: Color(0xFFE0DCF8),
-                        fg: Color(0xFF5A43BE),
-                        fullWidth: true,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _SectionCard(
-                  title: 'DAYCARE FEEDBACK',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Rate your experience today',
-                        style: TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Wrap(
-                        children: List.generate(5, (i) {
-                          final value = i + 1;
-                          return IconButton(
-                            onPressed: () => setState(() => _rating = value),
-                            icon: Icon(
-                              value <= _rating ? Icons.star : Icons.star_border,
-                              color: const Color(0xFFEAB308),
-                            ),
-                          );
-                        }),
-                      ),
-                      TextField(
-                        controller: _feedbackCtrl,
-                        decoration: InputDecoration(
-                          hintText: 'Write a comment...',
-                          filled: true,
-                          fillColor: const Color(0xFFF4F6FA),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFF59E0B),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Feedback submitted.'),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Submit Feedback',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            if (!isWide) {
+              return ListView(
+                children: [
+                  hero,
+                  const SizedBox(height: 14),
+                  etaCard,
+                  const SizedBox(height: 14),
+                  summaryCard,
+                  const SizedBox(height: 14),
+                  latestCard,
+                  const SizedBox(height: 14),
+                  quickActionsCard,
+                  const SizedBox(height: 14),
+                  feedbackCard,
+                ],
+              );
+            }
+
+            return _ResponsiveTwoColumn(
+              mainChildren: [hero, latestCard, feedbackCard],
+              sideChildren: [etaCard, summaryCard, quickActionsCard],
             );
           },
         );
       },
+    );
+  }
+
+  ChildRecordLite? _resolveSelectedChild(List<ChildRecordLite> linkedChildren) {
+    if (linkedChildren.isEmpty) return null;
+    for (final child in linkedChildren) {
+      if (child.id == _selectedChildId) return child;
+    }
+    if (_selectedChildId != linkedChildren.first.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _selectedChildId = linkedChildren.first.id);
+      });
+    }
+    return linkedChildren.first;
+  }
+
+  Widget _homeHero(
+    String daycareName,
+    String childName,
+    List<ChildRecordLite> linkedChildren,
+    String? selectedChildId,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFBEE3FF), Color(0xFFDFF5E6), Color(0xFFF9DDE6)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  daycareName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D6B7A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  childName,
+                  style: const TextStyle(
+                    fontSize: 43,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2A3D),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Checked in today',
+                  style: TextStyle(color: Color(0xFF5E6D79), fontSize: 18),
+                ),
+                if (linkedChildren.length > 1) ...[
+                  const SizedBox(height: 18),
+                  const Text(
+                    'SELECT CHILD',
+                    style: TextStyle(
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF5D6B7A),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: linkedChildren.map((child) {
+                      final fullName = child.fullName.isEmpty
+                          ? 'Child'
+                          : child.fullName;
+                      return ChoiceChip(
+                        label: Text(fullName),
+                        selected: child.id == selectedChildId,
+                        onSelected: (_) {
+                          setState(() => _selectedChildId = child.id);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'STATUS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '● Checked In',
+                  style: TextStyle(
+                    color: Color(0xFF239B5A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text('8:12 AM', style: TextStyle(color: Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _homeEtaCard(
+    BuildContext context,
+    ChildRecordLite? selectedChild,
+    String childName,
+    Map<String, dynamic> parent,
+  ) {
+    final canSend = selectedChild != null;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F7EF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFCFEAD7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "🚗 I'M ON MY WAY",
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              color: Color(0xFF355E52),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Select arrival time for $childName',
+            style: TextStyle(color: Color(0xFF51697A), fontSize: 18),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _EtaChoice(
+                label: '5 min',
+                selected: _eta == 5,
+                onTap: () => setState(() => _eta = 5),
+              ),
+              _EtaChoice(
+                label: '10 min',
+                selected: _eta == 10,
+                onTap: () => setState(() => _eta = 10),
+              ),
+              _EtaChoice(
+                label: '15 min',
+                selected: _eta == 15,
+                onTap: () => setState(() => _eta = 15),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2F9965),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: !canSend
+                  ? null
+                  : () async {
+                      try {
+                        await ParentRepository().createPickupNotification(
+                          contextData: widget.contextData,
+                          uid: widget.uid,
+                          etaMinutes: _eta,
+                          child: selectedChild,
+                          parentFirstName: (parent['firstName'] ?? '')
+                              .toString(),
+                          parentLastName: (parent['lastName'] ?? '').toString(),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'ETA $_eta min sent to daycare for $childName.',
+                            ),
+                          ),
+                        );
+                      } catch (_) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not send arrival notice. Try again later.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+              child: const Text(
+                'Send to daycare',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _homeSummaryCard(ChildRecordLite? child) {
+    final childName = child?.fullName.isNotEmpty == true
+        ? child!.fullName
+        : 'your child';
+    if (child == null) {
+      return _SectionCard(
+        title: 'TODAY SUMMARY',
+        child: const Text('No child selected yet.'),
+      );
+    }
+
+    return _SectionCard(
+      title: 'TODAY SUMMARY',
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: ParentRepository().watchTodaySummary(
+          widget.contextData,
+          child.id,
+        ),
+        builder: (context, snapshot) {
+          final data = snapshot.data?.data() ?? const <String, dynamic>{};
+          final tags = (data['tags'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .where((item) => item.trim().isNotEmpty)
+              .toList();
+          final dateKey = (data['dateKey'] ?? '').toString();
+          final fallbackTags = child.todaySummaryTags;
+          final fallbackDateKey = child.todaySummaryDateKey;
+          final visibleTags = tags.isNotEmpty ? tags : fallbackTags;
+          final visibleDateKey = dateKey.isNotEmpty ? dateKey : fallbackDateKey;
+          final isToday = visibleDateKey == ParentRepository.todayDateKey();
+
+          if (!isToday || visibleTags.isEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Updates for $childName',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('No summary has been posted yet for today.'),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Updates for $childName',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: visibleTags
+                    .map(
+                      (tag) => _SummaryChip(
+                        label: _summaryLabel(tag),
+                        color: _summaryColor(tag),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _homeLatestCard(ChildRecordLite? child) {
+    final childName = child?.fullName.isNotEmpty == true
+        ? child!.fullName
+        : 'your child';
+    if (child == null) {
+      return _SectionCard(
+        title: 'LATEST UPDATE',
+        child: const Text('No child selected yet.'),
+      );
+    }
+
+    return _SectionCard(
+      title: 'LATEST UPDATE',
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: ParentRepository().watchLatestUpdate(
+          widget.contextData,
+          child.id,
+        ),
+        builder: (context, snapshot) {
+          final data = snapshot.data?.data() ?? const <String, dynamic>{};
+          final photoUrl = (data['photoUrl'] ?? '').toString().trim().isNotEmpty
+              ? (data['photoUrl'] ?? '').toString()
+              : child.latestUpdatePhotoUrl;
+          final note = (data['note'] ?? '').toString().trim().isNotEmpty
+              ? (data['note'] ?? '').toString()
+              : child.latestUpdateNote;
+          final createdAt =
+              ChildRecordLite._asDateTime(data['createdAt']) ??
+              child.latestUpdateCreatedAt;
+
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDCEBFB), Color(0xFFF8E2EC)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 240,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    image: photoUrl.trim().isEmpty
+                        ? null
+                        : DecorationImage(
+                            image: NetworkImage(photoUrl),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                  child: photoUrl.trim().isNotEmpty
+                      ? null
+                      : const Center(
+                          child: Icon(
+                            Icons.camera_alt_outlined,
+                            size: 38,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '$childName latest classroom moment',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  note.trim().isEmpty
+                      ? 'No classroom note has been posted yet.'
+                      : 'Teacher note: $note',
+                  style: const TextStyle(
+                    color: Color(0xFF4B5563),
+                    fontSize: 18,
+                  ),
+                ),
+                if (createdAt != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Posted ${DateFormat('h:mm a').format(createdAt.toLocal())}',
+                    style: const TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _homeQuickActionsCard() {
+    return _SectionCard(
+      title: 'QUICK ACTIONS',
+      child: Column(
+        children: [
+          Row(
+            children: const [
+              Expanded(
+                child: _ActionButtonCard(
+                  label: 'Report\nAbsence',
+                  bg: Color(0xFFD9EAFA),
+                  fg: Color(0xFF335F8A),
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _ActionButtonCard(
+                  label: 'Call Daycare',
+                  bg: Color(0xFFF6EAB8),
+                  fg: Color(0xFF92601D),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const _ActionButtonCard(
+            label: 'View Forms',
+            bg: Color(0xFFE0DCF8),
+            fg: Color(0xFF5A43BE),
+            fullWidth: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _homeFeedbackCard(BuildContext context, String childName) {
+    return _SectionCard(
+      title: 'DAYCARE FEEDBACK',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Rate your experience today for $childName',
+            style: const TextStyle(color: Color(0xFF6B7280), fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            children: List.generate(5, (i) {
+              final value = i + 1;
+              return IconButton(
+                onPressed: () => setState(() => _rating = value),
+                icon: Icon(
+                  value <= _rating ? Icons.star : Icons.star_border,
+                  color: const Color(0xFFEAB308),
+                ),
+              );
+            }),
+          ),
+          TextField(
+            controller: _feedbackCtrl,
+            decoration: InputDecoration(
+              hintText: 'Write a comment...',
+              filled: true,
+              fillColor: const Color(0xFFF4F6FA),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Feedback submitted for $childName.')),
+                );
+              },
+              child: const Text(
+                'Submit Feedback',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -673,6 +1173,44 @@ class _SummaryChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String _summaryLabel(String tag) {
+  switch (tag) {
+    case 'Breakfast':
+      return '🍎 Breakfast';
+    case 'Nap Time':
+      return '😴 Nap Time';
+    case 'Outdoor Play':
+      return '☀️ Outdoor Play';
+    case 'Diaper Change':
+      return '🍼 Diaper Change';
+    case 'Lunch':
+      return '🥪 Lunch';
+    case 'Snack':
+      return '🍪 Snack';
+    default:
+      return tag;
+  }
+}
+
+Color _summaryColor(String tag) {
+  switch (tag) {
+    case 'Breakfast':
+      return const Color(0xFFE7F5EE);
+    case 'Nap Time':
+      return const Color(0xFFEDEBFA);
+    case 'Outdoor Play':
+      return const Color(0xFFF7F2E1);
+    case 'Diaper Change':
+      return const Color(0xFFF7E8EB);
+    case 'Lunch':
+      return const Color(0xFFE2F0FC);
+    case 'Snack':
+      return const Color(0xFFFDF0D6);
+    default:
+      return const Color(0xFFF1F5F9);
   }
 }
 
@@ -774,100 +1312,124 @@ class _ChildPageState extends State<ChildPage> {
                     ),
                   )
                   .toList();
+        final header = _childHeader();
+        final childCards = displayChildren
+            .map((item) => _childCard(item))
+            .toList();
+        final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-        return ListView(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFFD7F3E6),
-                    Color(0xFFD9EBFA),
-                    Color(0xFFF8DDE5),
-                  ],
+        if (!isWide) {
+          return ListView(
+            children: [
+              header,
+              const SizedBox(height: 14),
+              ...displayChildren.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _childCard(item),
                 ),
-                borderRadius: BorderRadius.circular(24),
               ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SUNSHINE KIDS DAYCARE',
-                          style: TextStyle(
-                            fontSize: 14,
-                            letterSpacing: 1,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF5B6B78),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Child',
-                          style: TextStyle(
-                            fontSize: 40,
-                            height: 1,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Manage your children\nprofiles',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFF5F6E7A),
-                          ),
-                        ),
-                      ],
-                    ),
+            ],
+          );
+        }
+
+        return SingleChildScrollView(
+          child: _ResponsiveContentFrame(
+            child: Column(
+              children: [
+                header,
+                const SizedBox(height: 18),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.55,
                   ),
-                  GestureDetector(
-                    onTap: _requesting ? null : _openChildRequestDialog,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.88),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x1A000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        _requesting ? 'Adding...' : 'Add\nChild',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF2F9965),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
+                  itemCount: childCards.length,
+                  itemBuilder: (context, index) => childCards[index],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _childHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8DDE5)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUNSHINE KIDS DAYCARE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5B6B78),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Child',
+                  style: TextStyle(
+                    fontSize: 40,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Manage your children\nprofiles',
+                  style: TextStyle(fontSize: 18, color: Color(0xFF5F6E7A)),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: _requesting ? null : _openChildRequestDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1A000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 14),
-            ...displayChildren.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _childCard(item),
+              child: Text(
+                _requesting ? 'Adding...' : 'Add\nChild',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF2F9965),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  height: 1.1,
+                ),
               ),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1134,203 +1696,207 @@ class ProfilePage extends StatelessWidget {
             : '$firstName $lastName'.trim();
         final phone = (data['phone'] ?? '(203) 555-0184').toString();
         final email = (data['email'] ?? 'juan@email.com').toString();
+        final header = _profileHeader();
+        final summary = _profileSummary(fullName, phone, email);
+        final pickups = _profileGroup(
+          title: 'AUTHORIZED PICKUP',
+          trailing: const _TinyGreenPill(label: 'Add'),
+          child: const Column(
+            children: [
+              _SoftListRow(
+                text: 'Juan Polanco · Father',
+                color: Color(0xFFDDEAF6),
+              ),
+              SizedBox(height: 10),
+              _SoftListRow(
+                text: 'Maria Polanco · Mother',
+                color: Color(0xFFDFF2EA),
+              ),
+              SizedBox(height: 10),
+              _SoftListRow(
+                text: 'Rosa Polanco · Grandmother',
+                color: Color(0xFFF4F0DE),
+              ),
+            ],
+          ),
+        );
+        final emergency = _profileGroup(
+          title: 'EMERGENCY CONTACTS',
+          child: const Column(
+            children: [
+              _EmergencyCard(
+                title: 'Emergency Contact 1',
+                value: 'Maria Polanco · (203) 555-0140',
+                color: Color(0xFFF4E7EB),
+              ),
+              SizedBox(height: 10),
+              _EmergencyCard(
+                title: 'Emergency Contact 2',
+                value: 'Rosa Polanco · (203) 555-0162',
+                color: Color(0xFFEAE6F9),
+              ),
+            ],
+          ),
+        );
+        final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-        return ListView(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFFF8DDE5),
-                    Color(0xFFD2EBFF),
-                    Color(0xFFD6F3E0),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
-                      child: Center(
-                        child: Text('👥', style: TextStyle(fontSize: 28)),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SUNSHINE KIDS DAYCARE',
-                          style: TextStyle(
-                            fontSize: 14,
-                            letterSpacing: 1,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF657384),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Profile',
-                          style: TextStyle(
-                            fontSize: 40,
-                            height: 1,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Parent information and\npickup details',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF607080),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FBFF),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFD8E2EC)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 62,
-                        height: 62,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD4E9FC),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.person,
-                            color: Color(0xFF5A6B7A),
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fullName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: Color(0xFF2B3442),
-                              ),
-                            ),
-                            const Text(
-                              'Father · Primary\naccount',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Color(0xFF67758A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEDEFF3),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Text(
-                          'Edit',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF6C7482),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _profileInfoCell(label: 'Phone:', value: phone),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _profileInfoCell(label: 'Email:', value: email),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _profileGroup(
-              title: 'AUTHORIZED PICKUP',
-              trailing: const _TinyGreenPill(label: 'Add'),
-              child: const Column(
-                children: [
-                  _SoftListRow(
-                    text: 'Juan Polanco · Father',
-                    color: Color(0xFFDDEAF6),
-                  ),
-                  SizedBox(height: 10),
-                  _SoftListRow(
-                    text: 'Maria Polanco · Mother',
-                    color: Color(0xFFDFF2EA),
-                  ),
-                  SizedBox(height: 10),
-                  _SoftListRow(
-                    text: 'Rosa Polanco · Grandmother',
-                    color: Color(0xFFF4F0DE),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _profileGroup(
-              title: 'EMERGENCY CONTACTS',
-              child: const Column(
-                children: [
-                  _EmergencyCard(
-                    title: 'Emergency Contact 1',
-                    value: 'Maria Polanco · (203) 555-0140',
-                    color: Color(0xFFF4E7EB),
-                  ),
-                  SizedBox(height: 10),
-                  _EmergencyCard(
-                    title: 'Emergency Contact 2',
-                    value: 'Rosa Polanco · (203) 555-0162',
-                    color: Color(0xFFEAE6F9),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        if (!isWide) {
+          return ListView(
+            children: [
+              header,
+              const SizedBox(height: 14),
+              summary,
+              const SizedBox(height: 14),
+              pickups,
+              const SizedBox(height: 14),
+              emergency,
+            ],
+          );
+        }
+
+        return _ResponsiveTwoColumn(
+          mainChildren: [header, summary],
+          sideChildren: [pickups, emergency],
         );
       },
+    );
+  }
+
+  Widget _profileHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF8DDE5), Color(0xFFD2EBFF), Color(0xFFD6F3E0)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+              child: Center(child: Text('👥', style: TextStyle(fontSize: 28))),
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUNSHINE KIDS DAYCARE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF657384),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Profile',
+                  style: TextStyle(
+                    fontSize: 40,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Parent information and\npickup details',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileSummary(String fullName, String phone, String email) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD4E9FC),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Icon(Icons.person, color: Color(0xFF5A6B7A), size: 30),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        color: Color(0xFF2B3442),
+                      ),
+                    ),
+                    const Text(
+                      'Father · Primary\naccount',
+                      style: TextStyle(fontSize: 15, color: Color(0xFF67758A)),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDEFF3),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Edit',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6C7482),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _profileInfoCell(label: 'Phone:', value: phone),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _profileInfoCell(label: 'Email:', value: email),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1523,189 +2089,266 @@ class _FormsPageState extends State<FormsPage> {
           );
           _initialized = true;
         }
+        return StreamBuilder<List<ChildRecordLite>>(
+          stream: ParentRepository().watchChildrenForTenant(widget.contextData),
+          builder: (context, childSnapshot) {
+            final children = childSnapshot.data ?? const <ChildRecordLite>[];
+            final linkedChildren = children
+                .where((c) => c.parentId == widget.contextData.parentId)
+                .toList();
 
-        return ListView(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFDCD9F6), Color(0xFFD2EFE0)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 64,
-                    height: 64,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
-                      child: Center(
-                        child: Text('📄', style: TextStyle(fontSize: 28)),
+            final header = _formsHeader();
+            final addSignature = Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF3FB37B),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: _saving ? null : () => _openSignatureDialog(),
+                    child: const Text(
+                      'Save Signature',
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'SUNSHINE KIDS DAYCARE',
-                          style: TextStyle(
-                            fontSize: 14,
-                            letterSpacing: 1,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF657384),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Forms',
-                          style: TextStyle(
-                            fontSize: 40,
-                            height: 1,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1F2937),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Registration and normal\ndaycare documents',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF607080),
-                          ),
-                        ),
-                      ],
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    onPressed: _saving
+                        ? null
+                        : () => _openSavedContractSignatureViewer(data),
+                    child: const Text(
+                      'View Saved Signature',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF3FB37B),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                onPressed: _saving ? null : () => _openSignatureDialog(),
-                child: const Text(
-                  'Add Signature',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FBFF),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFD8E2EC)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              ],
+            );
+            final photoPermission = _photoPermissionCard(data, linkedChildren);
+            final pending = _formsPendingCard(data, linkedChildren);
+            final docs = _formsDocsCard();
+            final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+            if (!isWide) {
+              return ListView(
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'PENDING SIGNATURE',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            color: Color(0xFF3C4A5B),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8E7B5),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Text(
-                          '2 Pending',
-                          style: TextStyle(
-                            color: Color(0xFF9B6A21),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _PendingSignCard(
-                    title: 'Registration Form',
-                    subtitle: 'Child enrollment information',
-                    color: const Color(0xFFF8F3DF),
-                    onSign: _saving ? null : _openSignatureDialog,
-                  ),
-                  const SizedBox(height: 10),
-                  _PendingSignCard(
-                    title: 'Going Out Permit',
-                    subtitle: 'Permission for trips and\noutside activities',
-                    color: const Color(0xFFF4E7EB),
-                    onSign: _saving ? null : _openSignatureDialog,
-                  ),
+                  header,
+                  const SizedBox(height: 14),
+                  addSignature,
+                  const SizedBox(height: 14),
+                  photoPermission,
+                  const SizedBox(height: 14),
+                  pending,
+                  const SizedBox(height: 14),
+                  docs,
                 ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FBFF),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFFD8E2EC)),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'MAIN DOCUMENTS',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                      color: Color(0xFF3C4A5B),
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  _FormsDocRow(
-                    text: 'Daycare Contract',
-                    color: Color(0xFFDCE8F4),
-                  ),
-                  SizedBox(height: 10),
-                  _FormsDocRow(
-                    text: 'Child Registration',
-                    color: Color(0xFFDFF2EA),
-                  ),
-                  SizedBox(height: 10),
-                  _FormsDocRow(
-                    text: 'Emergency Contact Form',
-                    color: Color(0xFFE9E7F8),
-                  ),
-                  SizedBox(height: 10),
-                  _FormsDocRow(
-                    text: 'Medical Information',
-                    color: Color(0xFFF4F0DE),
-                  ),
-                ],
-              ),
-            ),
-          ],
+              );
+            }
+
+            return _ResponsiveTwoColumn(
+              mainChildren: [header, photoPermission, docs],
+              sideChildren: [addSignature, pending],
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _formsHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFDCD9F6), Color(0xFFD2EFE0)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+              child: Center(child: Text('📄', style: TextStyle(fontSize: 28))),
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUNSHINE KIDS DAYCARE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF657384),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Forms',
+                  style: TextStyle(
+                    fontSize: 40,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Registration and normal\ndaycare documents',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _formsPendingCard(
+    Map<String, dynamic> parentData,
+    List<ChildRecordLite> linkedChildren,
+  ) {
+    final pendingCount =
+        (_accepted ? 0 : 1) +
+        linkedChildren.where((child) => !child.photoPermissionSigned).length;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'PENDING SIGNATURE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: Color(0xFF3C4A5B),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8E7B5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '$pendingCount Pending',
+                  style: const TextStyle(
+                    color: Color(0xFF9B6A21),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _PendingSignCard(
+            title: 'Daycare Contract',
+            subtitle: 'General daycare terms and parent agreement',
+            color: const Color(0xFFF8F3DF),
+            onSign: _saving ? null : _openSignatureDialog,
+            onView: _saving
+                ? null
+                : () => _openSavedContractSignatureViewer(parentData),
+          ),
+          ...linkedChildren.map(
+            (child) => Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: _PendingSignCard(
+                title:
+                    '${child.fullName.isEmpty ? 'Child' : child.fullName} Photo Permission',
+                subtitle: child.photoPermissionSigned
+                    ? 'Signed and available for daycare updates'
+                    : 'Permission for photo sharing is still pending',
+                color: child.photoPermissionSigned
+                    ? const Color(0xFFE4F6EB)
+                    : const Color(0xFFF4E7EB),
+                onSign: _saving
+                    ? null
+                    : () => _signPhotoPermissionWithSavedSignature(
+                        data: parentData,
+                        child: child,
+                      ),
+                onView: () =>
+                    _openPhotoPermissionViewer(data: parentData, child: child),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _formsDocsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'MAIN DOCUMENTS',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: Color(0xFF3C4A5B),
+            ),
+          ),
+          SizedBox(height: 12),
+          _FormsDocRow(text: 'Daycare Contract', color: Color(0xFFDCE8F4)),
+          SizedBox(height: 10),
+          _FormsDocRow(text: 'Child Registration', color: Color(0xFFDFF2EA)),
+          SizedBox(height: 10),
+          _FormsDocRow(
+            text: 'Photo & Media Permission',
+            color: Color(0xFFF4E4EC),
+          ),
+          SizedBox(height: 10),
+          _FormsDocRow(
+            text: 'Emergency Contact Form',
+            color: Color(0xFFE9E7F8),
+          ),
+          SizedBox(height: 10),
+          _FormsDocRow(text: 'Medical Information', color: Color(0xFFF4F0DE)),
+        ],
+      ),
     );
   }
 
@@ -1713,6 +2356,7 @@ class _FormsPageState extends State<FormsPage> {
     final nameCtrl = TextEditingController(text: _signName.text);
     var acceptedLocal = _accepted;
     var pointsLocal = <Offset?>[..._signaturePoints];
+    String? errorText;
 
     await showDialog<void>(
       context: context,
@@ -1758,6 +2402,16 @@ class _FormsPageState extends State<FormsPage> {
                       onChanged: (next) =>
                           setDialogState(() => pointsLocal = next),
                     ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Color(0xFFB42318),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1772,38 +2426,71 @@ class _FormsPageState extends State<FormsPage> {
                   onPressed: _saving
                       ? null
                       : () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          setState(() => _saving = true);
-                          await ParentRepository().updateParentProfile(
-                            contextData: widget.contextData,
-                            uid: widget.uid,
-                            changes: {
-                              'parentContract': {
-                                'accepted': acceptedLocal,
-                                'signedName': nameCtrl.text.trim(),
-                                'signaturePoints': _encodeSignaturePoints(
-                                  pointsLocal,
-                                ),
-                                'signatureCaptured': pointsLocal.any(
-                                  (p) => p != null,
-                                ),
-                                'signedAt': FieldValue.serverTimestamp(),
-                              },
-                            },
+                          final trimmedName = nameCtrl.text.trim();
+                          final signatureCaptured = pointsLocal.any(
+                            (p) => p != null,
                           );
-                          if (!mounted) return;
-                          setState(() {
-                            _saving = false;
-                            _accepted = acceptedLocal;
-                            _signName.text = nameCtrl.text.trim();
-                            _signaturePoints = pointsLocal;
-                          });
-                          if (dialogContext.mounted) {
-                            Navigator.of(dialogContext).pop();
+                          if (!acceptedLocal) {
+                            setDialogState(() {
+                              errorText =
+                                  'You need to accept the contract terms before saving.';
+                            });
+                            return;
                           }
-                          messenger.showSnackBar(
-                            const SnackBar(content: Text('Signature saved.')),
-                          );
+                          if (trimmedName.isEmpty) {
+                            setDialogState(() {
+                              errorText =
+                                  'Enter the parent signature name before saving.';
+                            });
+                            return;
+                          }
+                          if (!signatureCaptured) {
+                            setDialogState(() {
+                              errorText =
+                                  'Draw the signature before saving the contract.';
+                            });
+                            return;
+                          }
+                          final messenger = ScaffoldMessenger.of(context);
+                          setDialogState(() => errorText = null);
+                          setState(() => _saving = true);
+                          try {
+                            await ParentRepository()
+                                .saveParentContractSignature(
+                                  contextData: widget.contextData,
+                                  uid: widget.uid,
+                                  accepted: acceptedLocal,
+                                  signedName: trimmedName,
+                                  signaturePoints: _encodeSignaturePoints(
+                                    pointsLocal,
+                                  ),
+                                  signatureCaptured: signatureCaptured,
+                                );
+                            if (!mounted) return;
+                            setState(() {
+                              _accepted = acceptedLocal;
+                              _signName.text = trimmedName;
+                              _signaturePoints = pointsLocal;
+                            });
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Contract signature saved.'),
+                              ),
+                            );
+                          } catch (e) {
+                            if (dialogContext.mounted) {
+                              setDialogState(() {
+                                errorText = 'Could not save the signature. $e';
+                              });
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _saving = false);
+                            }
+                          }
                         },
                   child: const Text('Save Signature'),
                 ),
@@ -1815,12 +2502,444 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
-  List<Map<String, double?>> _encodeSignaturePoints(List<Offset?> points) {
+  Future<void> _openSavedContractSignatureViewer(
+    Map<String, dynamic> data,
+  ) async {
+    final contract =
+        (data['parentContract'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final parentName =
+        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
+            .trim();
+    final parentEmail = (data['email'] ?? '').toString();
+    final parentPhone = (data['phone'] ?? '').toString();
+    final addressParts = [
+      (data['addressLine1'] ?? '').toString(),
+      (data['city'] ?? '').toString(),
+      (data['state'] ?? '').toString(),
+      (data['zip'] ?? '').toString(),
+    ].where((part) => part.trim().isNotEmpty).toList();
+    final address = addressParts.join(', ');
+    final signedName = (contract['signedName'] ?? '').toString().trim();
+    final accepted = contract['accepted'] == true;
+    final signedAt = ChildRecordLite._asDateTime(contract['signedAt']);
+    final signaturePoints =
+        (contract['signaturePoints'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString())
+            .toList();
+
+    if (!mounted) return;
+    await _showPdfDocumentDialog(
+      title: 'Daycare Contract',
+      build: () => FormPdfBuilder.buildContractPdf(
+        parentName: parentName,
+        parentEmail: parentEmail,
+        parentPhone: parentPhone,
+        parentAddress: address,
+        signedName: signedName,
+        signed: accepted,
+        signedAt: signedAt,
+        signaturePoints: signaturePoints,
+      ),
+    );
+  }
+
+  Widget _photoPermissionCard(
+    Map<String, dynamic> parentData,
+    List<ChildRecordLite> linkedChildren,
+  ) {
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final parentEmail = (parentData['email'] ?? '').toString();
+    final parentPhone = (parentData['phone'] ?? '').toString();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PHOTO & MEDIA PERMISSION',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: Color(0xFF3C4A5B),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            parentName.isEmpty ? 'Parent profile' : parentName,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          if (parentEmail.isNotEmpty || parentPhone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              [
+                parentEmail,
+                parentPhone,
+              ].where((value) => value.trim().isNotEmpty).join(' • '),
+              style: const TextStyle(color: Color(0xFF607080)),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (linkedChildren.isEmpty)
+            const Text('No linked children found for photo permissions yet.')
+          else
+            ...linkedChildren.map(
+              (child) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _PhotoPermissionChildCard(
+                  child: child,
+                  onSign: _saving
+                      ? null
+                      : () => _signPhotoPermissionWithSavedSignature(
+                          data: parentData,
+                          child: child,
+                        ),
+                  onView: () => _openPhotoPermissionViewer(
+                    data: parentData,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _signPhotoPermissionWithSavedSignature({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+  }) async {
+    final contract =
+        (data['parentContract'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final parentName =
+        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
+            .trim();
+    final parentEmail = (data['email'] ?? '').toString();
+    final parentPhone = (data['phone'] ?? '').toString();
+    final addressParts = [
+      (data['addressLine1'] ?? '').toString(),
+      (data['city'] ?? '').toString(),
+      (data['state'] ?? '').toString(),
+      (data['zip'] ?? '').toString(),
+    ].where((part) => part.trim().isNotEmpty).toList();
+    final address = addressParts.join(', ');
+    final signedName = (contract['signedName'] ?? '').toString().trim();
+    final contractAccepted = contract['accepted'] == true;
+    final signatureCaptured = contract['signatureCaptured'] == true;
+    final pointsLocal = _decodeSignaturePoints(
+      contract['signaturePoints'] as List<dynamic>?,
+    );
+    final hasSavedSignature =
+        contractAccepted &&
+        signatureCaptured &&
+        signedName.isNotEmpty &&
+        pointsLocal.any((point) => point != null);
+
+    if (!mounted) return;
+    if (!hasSavedSignature) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sign Daycare Contract first. That saved signature will be reused for this document.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Sign Photo & Media Permission',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      child.fullName.isEmpty ? 'Child' : child.fullName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF2B6E6A),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FBFF),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFD8E2EC)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _DocInfoRow(
+                            title: 'Parent Name',
+                            value: parentName.isEmpty ? '-' : parentName,
+                          ),
+                          _DocInfoRow(
+                            title: 'Email',
+                            value: parentEmail.isEmpty ? '-' : parentEmail,
+                          ),
+                          _DocInfoRow(
+                            title: 'Phone',
+                            value: parentPhone.isEmpty ? '-' : parentPhone,
+                          ),
+                          _DocInfoRow(
+                            title: 'Address',
+                            value: address.isEmpty ? '-' : address,
+                          ),
+                          _DocInfoRow(
+                            title: 'Child',
+                            value: child.fullName.isEmpty
+                                ? 'Child'
+                                : child.fullName,
+                          ),
+                          _DocInfoRow(
+                            title: 'Saved Signature',
+                            value: signedName,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFDF7E8),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFEADDBB)),
+                      ),
+                      child: const Text(
+                        'The daycare contract signature already on file will be applied to this photo permission document. Press Sign Document to approve it.',
+                        style: TextStyle(
+                          height: 1.45,
+                          color: Color(0xFF4B5563),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Saved Contract Signature',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    IgnorePointer(
+                      child: Opacity(
+                        opacity: 0.95,
+                        child: SignaturePad(
+                          points: pointsLocal,
+                          onChanged: (_) {},
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _saving
+                              ? null
+                              : () => Navigator.of(dialogContext).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _saving
+                              ? null
+                              : () async {
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+                                  setState(() => _saving = true);
+                                  try {
+                                    await ParentRepository()
+                                        .savePhotoPermissionDocument(
+                                          contextData: widget.contextData,
+                                          uid: widget.uid,
+                                          child: child,
+                                          parentData: data,
+                                          consentGranted: true,
+                                          signedName: signedName,
+                                          signaturePoints:
+                                              _encodeSignaturePoints(
+                                                pointsLocal,
+                                              ),
+                                          signatureCaptured: true,
+                                        );
+                                    if (!mounted) return;
+                                    if (dialogContext.mounted) {
+                                      Navigator.of(dialogContext).pop();
+                                    }
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Photo permission signed for ${child.fullName.isEmpty ? 'child' : child.fullName}.',
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Could not sign the document. $e',
+                                        ),
+                                      ),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _saving = false);
+                                    }
+                                  }
+                                },
+                          child: const Text('Sign Document'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openPhotoPermissionViewer({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+  }) async {
+    final existingPermission = await ParentRepository()
+        .loadPhotoPermissionDocument(
+          contextData: widget.contextData,
+          childId: child.id,
+        );
+    final parentName =
+        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
+            .trim();
+    final parentEmail = (data['email'] ?? '').toString();
+    final parentPhone = (data['phone'] ?? '').toString();
+    final addressParts = [
+      (data['addressLine1'] ?? '').toString(),
+      (data['city'] ?? '').toString(),
+      (data['state'] ?? '').toString(),
+      (data['zip'] ?? '').toString(),
+    ].where((part) => part.trim().isNotEmpty).toList();
+    final address = addressParts.join(', ');
+    final signedName = (existingPermission['signedName'] ?? '')
+        .toString()
+        .trim();
+    final signedAt = ChildRecordLite._asDateTime(
+      existingPermission['signedAt'],
+    );
+    final consentGranted = existingPermission['consentGranted'] == true;
+    final signaturePoints =
+        (existingPermission['signaturePoints'] as List<dynamic>? ?? const [])
+            .map((item) => item.toString())
+            .toList();
+    if (!mounted) return;
+    await _showPdfDocumentDialog(
+      title:
+          '${child.fullName.isEmpty ? 'Child' : child.fullName} Photo Permission',
+      build: () => FormPdfBuilder.buildPhotoPermissionPdf(
+        parentName: parentName,
+        parentEmail: parentEmail,
+        parentPhone: parentPhone,
+        parentAddress: address,
+        childName: child.fullName.isEmpty ? 'Child' : child.fullName,
+        signedName: signedName,
+        signed: consentGranted,
+        signedAt: signedAt,
+        signaturePoints: signaturePoints,
+      ),
+    );
+  }
+
+  Future<void> _showPdfDocumentDialog({
+    required String title,
+    required Future<List<int>> Function() build,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: SizedBox(
+            width: 920,
+            height: 760,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: PdfPreview(
+                    canChangePageFormat: false,
+                    canChangeOrientation: false,
+                    allowPrinting: true,
+                    allowSharing: true,
+                    build: (format) async => Uint8List.fromList(await build()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<String> _encodeSignaturePoints(List<Offset?> points) {
     return points
         .map(
           (p) => p == null
-              ? {'x': null, 'y': null}
-              : {'x': p.dx.toDouble(), 'y': p.dy.toDouble()},
+              ? 'BREAK'
+              : '${p.dx.toStringAsFixed(2)},${p.dy.toStringAsFixed(2)}',
         )
         .toList();
   }
@@ -1829,15 +2948,35 @@ class _FormsPageState extends State<FormsPage> {
     if (raw == null) return <Offset?>[];
     final out = <Offset?>[];
     for (final item in raw) {
-      if (item is! Map) continue;
-      final x = item['x'];
-      final y = item['y'];
-      if (x == null || y == null) {
-        out.add(null);
+      if (item is String) {
+        if (item == 'BREAK') {
+          out.add(null);
+          continue;
+        }
+        final parts = item.split(',');
+        if (parts.length != 2) continue;
+        final x = double.tryParse(parts[0]);
+        final y = double.tryParse(parts[1]);
+        if (x != null && y != null) {
+          out.add(Offset(x, y));
+        }
         continue;
       }
-      if (x is num && y is num) {
-        out.add(Offset(x.toDouble(), y.toDouble()));
+      if (item is Map) {
+        final hasBreak = item['break'];
+        if (hasBreak == 1 || hasBreak == true) {
+          out.add(null);
+          continue;
+        }
+        final x = item['x'];
+        final y = item['y'];
+        if (x == null || y == null) {
+          out.add(null);
+          continue;
+        }
+        if (x is num && y is num) {
+          out.add(Offset(x.toDouble(), y.toDouble()));
+        }
       }
     }
     return out;
@@ -1850,12 +2989,14 @@ class _PendingSignCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onSign,
+    required this.onView,
   });
 
   final String title;
   final String subtitle;
   final Color color;
   final VoidCallback? onSign;
+  final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) {
@@ -1865,39 +3006,171 @@ class _PendingSignCard extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF3D4A59),
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF3D4A59),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(color: Color(0xFF63748A)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Color(0xFF63748A)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: onSign,
+                  child: const Text('Sign Document'),
                 ),
-              ],
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onView,
+                  child: const Text('View Document'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoPermissionChildCard extends StatelessWidget {
+  const _PhotoPermissionChildCard({
+    required this.child,
+    required this.onSign,
+    required this.onView,
+  });
+
+  final ChildRecordLite child;
+  final VoidCallback? onSign;
+  final VoidCallback? onView;
+
+  @override
+  Widget build(BuildContext context) {
+    final signed = child.photoPermissionSigned;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: signed ? const Color(0xFFE7F6ED) : const Color(0xFFF7ECF0),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      child.fullName.isEmpty ? 'Child' : child.fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF3D4A59),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      signed
+                          ? 'Permission signed'
+                          : 'Permission still needs a signature',
+                      style: const TextStyle(color: Color(0xFF63748A)),
+                    ),
+                    if (signed && child.photoPermissionSignedAt != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Signed on ${_formatShortDate(child.photoPermissionSignedAt!)}',
+                        style: const TextStyle(color: Color(0xFF63748A)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: onSign,
+                  child: const Text('Sign Document'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onView,
+                  child: const Text('View Document'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocInfoRow extends StatelessWidget {
+  const _DocInfoRow({required this.title, required this.value});
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 108,
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF5F6E7A),
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 74,
-            child: FilledButton.tonal(
-              onPressed: onSign,
-              child: const Text('Sign'),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(color: Color(0xFF1F2937)),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+String _formatShortDate(DateTime value) {
+  return '${value.month}/${value.day}/${value.year}';
 }
 
 class _FormsDocRow extends StatelessWidget {
@@ -1931,250 +3204,258 @@ class BillingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        const _DisplayOnlyBanner(),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8E2B9)],
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: const Row(
-            children: [
-              SizedBox(
-                width: 64,
-                height: 64,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                  ),
-                  child: Center(
-                    child: Text('💳', style: TextStyle(fontSize: 26)),
-                  ),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'SUNSHINE KIDS DAYCARE',
-                      style: TextStyle(
-                        fontSize: 14,
-                        letterSpacing: 1,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF607080),
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Billing',
-                      style: TextStyle(
-                        fontSize: 40,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Tuition, invoices, receipts, and\npayment methods',
-                      style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+    final header = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8E2B9)],
         ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE7F7EF),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFFCBE8D7)),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.all(Radius.circular(16)),
+              ),
+              child: Center(child: Text('💳', style: TextStyle(fontSize: 26))),
+            ),
           ),
-          child: Row(
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SUNSHINE KIDS DAYCARE',
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 1,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF607080),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Billing',
+                  style: TextStyle(
+                    fontSize: 40,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Tuition, invoices, receipts, and\npayment methods',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    final balanceCard = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE7F7EF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFCBE8D7)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CURRENT BALANCE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: Color(0xFF2F7D64),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  r'$325.00',
+                  style: TextStyle(
+                    fontSize: 44,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Due on March 15',
+                  style: TextStyle(color: Color(0xFF607080)),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2F9965),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            ),
+            onPressed: () {},
+            child: const Text(
+              'Pay Now',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    final upcomingCard = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CURRENT BALANCE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: Color(0xFF2F7D64),
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      r'$325.00',
-                      style: TextStyle(
-                        fontSize: 44,
-                        height: 1,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Due on March 15',
-                      style: TextStyle(color: Color(0xFF607080)),
-                    ),
-                  ],
-                ),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2F9965),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
+                child: Text(
+                  'UPCOMING INVOICE',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: Color(0xFF3C4A5B),
                   ),
                 ),
-                onPressed: () {},
-                child: const Text(
-                  'Pay Now',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FBFF),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFFD8E2EC)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'UPCOMING INVOICE',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: Color(0xFF3C4A5B),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8E7B5),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Text(
-                      'Pending',
-                      style: TextStyle(
-                        color: Color(0xFF9B6A21),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F3DF),
-                  borderRadius: BorderRadius.circular(16),
+                  color: const Color(0xFFF8E7B5),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Weekly Tuition',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF344155),
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Invoice #1048 · March 10 -\nMarch 14',
-                            style: TextStyle(color: Color(0xFF607080)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      r'$325.00',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 28,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FBFF),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFFD8E2EC)),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'PAYMENT METHODS',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: Color(0xFF3C4A5B),
-                ),
-              ),
-              SizedBox(height: 12),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Color(0xFFDCE8F4),
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Text(
-                    'Visa ending in 4242 · Default\npayment method',
-                    style: TextStyle(
-                      color: Color(0xFF455569),
-                      fontWeight: FontWeight.w600,
-                    ),
+                child: const Text(
+                  'Pending',
+                  style: TextStyle(
+                    color: Color(0xFF9B6A21),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F3DF),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Weekly Tuition',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF344155),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Invoice #1048 · March 10 -\nMarch 14',
+                        style: TextStyle(color: Color(0xFF607080)),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  r'$325.00',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 28,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    final paymentMethodsCard = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PAYMENT METHODS',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: Color(0xFF3C4A5B),
+            ),
+          ),
+          SizedBox(height: 12),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Color(0xFFDCE8F4),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(14),
+              child: Text(
+                'Visa ending in 4242 · Default\npayment method',
+                style: TextStyle(
+                  color: Color(0xFF455569),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+    if (!isWide) {
+      return ListView(
+        children: [
+          const _DisplayOnlyBanner(),
+          const SizedBox(height: 12),
+          header,
+          const SizedBox(height: 14),
+          balanceCard,
+          const SizedBox(height: 14),
+          upcomingCard,
+          const SizedBox(height: 14),
+          paymentMethodsCard,
+        ],
+      );
+    }
+
+    return _ResponsiveTwoColumn(
+      mainChildren: [const _DisplayOnlyBanner(), header, upcomingCard],
+      sideChildren: [balanceCard, paymentMethodsCard],
     );
   }
 }
@@ -2321,14 +3602,22 @@ class _SignaturePainter extends CustomPainter {
 }
 
 class _VersionBar extends StatelessWidget {
-  const _VersionBar();
+  const _VersionBar({this.compact = false});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      color: const Color(0xFFF1E7DC),
+      padding: EdgeInsets.symmetric(
+        vertical: compact ? 10 : 8,
+        horizontal: compact ? 10 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1E7DC),
+        borderRadius: compact ? BorderRadius.circular(16) : null,
+      ),
       child: const Text(
         'Parent App Version: v$_appVersion',
         textAlign: TextAlign.center,
@@ -2481,250 +3770,342 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
     return Scaffold(
       appBar: AppBar(title: const Text('My Daycare Parent Login')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 14),
-                    Center(
-                      child: Container(
-                        width: 86,
-                        height: 86,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCFEEDD),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: const Center(
-                          child: Text('🏫', style: TextStyle(fontSize: 36)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Sunshine Kids',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Parent Login',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 26, color: Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 18),
-                    _authFieldCard(
-                      label: 'EMAIL',
-                      child: TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(fontSize: 22),
-                        decoration: InputDecoration(
-                          hintText: 'parent@email.com',
-                          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: const Color(0xFFF2F5F8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFDDE4EC),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFDDE4EC),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF2F9965),
-                              width: 1.6,
-                            ),
-                          ),
-                        ),
-                        validator: (value) {
-                          final input = (value ?? '').trim();
-                          if (input.isEmpty) return 'Email is required';
-                          if (!input.contains('@')) {
-                            return 'Enter a valid email';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _authFieldCard(
-                      label: 'PASSWORD',
-                      child: TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        style: const TextStyle(fontSize: 22),
-                        decoration: InputDecoration(
-                          hintText: '••••••••',
-                          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: const Color(0xFFF2F5F8),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFDDE4EC),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFDDE4EC),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF2F9965),
-                              width: 1.6,
-                            ),
-                          ),
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').isEmpty) {
-                            return 'Password is required';
-                          }
-                          if (_isRegisterMode && (value ?? '').length < 6) {
-                            return 'Use at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Checkbox(
-                          value: _rememberLogin,
-                          onChanged: (value) {
-                            setState(() => _rememberLogin = value ?? false);
-                          },
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        const Text(
-                          'Remember login',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF2F9965),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                      ),
-                      onPressed: _isLoading ? null : _submitAuth,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              _isRegisterMode ? 'Register' : 'Login',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (!_isRegisterMode)
-                      TextButton(
-                        onPressed: _isLoading ? null : _forgotPassword,
-                        child: const Text(
-                          'Forgot password?',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Color(0xFF7B8794),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEAF3FB),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Text(
-                        'New parent? Contact the daycare to\nreceive your invite link.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xFF5C6C7A),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              setState(() {
-                                _isRegisterMode = !_isRegisterMode;
-                                _error = null;
-                              });
-                            },
-                      child: Text(
-                        _isRegisterMode
-                            ? 'Already have account? Login'
-                            : 'No account? Register',
-                        style: const TextStyle(
-                          color: Color(0xFF6B8E89),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: isWide
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFF8F1E6),
+                    Color(0xFFE6F4EE),
+                    Color(0xFFEAF1FB),
                   ],
-                ),
-              ),
-            ),
-          ),
+                )
+              : null,
+        ),
+        child: SafeArea(
+          child: isWide ? _buildWideLogin(context) : _buildMobileLogin(context),
         ),
       ),
       bottomNavigationBar: const _VersionBar(),
+    );
+  }
+
+  Widget _buildMobileLogin(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 430),
+          child: _buildLoginForm(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideLogin(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1240),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(34),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFFD8EBFF),
+                        Color(0xFFD8F4E3),
+                        Color(0xFFF8DDE5),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(34),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x12000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Parent Portal',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: Color(0xFF5C6C7A),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'A calmer, clearer daycare website for families.',
+                        style: TextStyle(
+                          fontSize: 46,
+                          height: 1.05,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Check attendance, forms, billing, and child updates from one shared dashboard designed for larger screens.',
+                        style: TextStyle(
+                          fontSize: 18,
+                          height: 1.4,
+                          color: Color(0xFF526171),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 28),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: Container(
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        borderRadius: BorderRadius.circular(32),
+                        border: Border.all(color: const Color(0xFFE5EAF0)),
+                      ),
+                      child: _buildLoginForm(context),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginForm(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 14),
+          Center(
+            child: Container(
+              width: 86,
+              height: 86,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCFEEDD),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Center(
+                child: Text('🏫', style: TextStyle(fontSize: 36)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Sunshine Kids',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 44,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Parent Login',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 26, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 18),
+          _authFieldCard(
+            label: 'EMAIL',
+            child: TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(fontSize: 22),
+              decoration: InputDecoration(
+                hintText: 'parent@email.com',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: const Color(0xFFF2F5F8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFDDE4EC)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFDDE4EC)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF2F9965),
+                    width: 1.6,
+                  ),
+                ),
+              ),
+              validator: (value) {
+                final input = (value ?? '').trim();
+                if (input.isEmpty) return 'Email is required';
+                if (!input.contains('@')) return 'Enter a valid email';
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          _authFieldCard(
+            label: 'PASSWORD',
+            child: TextFormField(
+              controller: _passwordController,
+              obscureText: true,
+              style: const TextStyle(fontSize: 22),
+              decoration: InputDecoration(
+                hintText: '••••••••',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: const Color(0xFFF2F5F8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFDDE4EC)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFFDDE4EC)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF2F9965),
+                    width: 1.6,
+                  ),
+                ),
+              ),
+              validator: (value) {
+                if ((value ?? '').isEmpty) return 'Password is required';
+                if (_isRegisterMode && (value ?? '').length < 6) {
+                  return 'Use at least 6 characters';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Checkbox(
+                value: _rememberLogin,
+                onChanged: (value) {
+                  setState(() => _rememberLogin = value ?? false);
+                },
+                visualDensity: VisualDensity.compact,
+              ),
+              const Text(
+                'Remember login',
+                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              ),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2F9965),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            onPressed: _isLoading ? null : _submitAuth,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    _isRegisterMode ? 'Register' : 'Login',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          if (!_isRegisterMode)
+            TextButton(
+              onPressed: _isLoading ? null : _forgotPassword,
+              child: const Text(
+                'Forgot password?',
+                style: TextStyle(fontSize: 18, color: Color(0xFF7B8794)),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF3FB),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'New parent? Contact the daycare to\nreceive your invite link.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF5C6C7A),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: _isLoading
+                ? null
+                : () {
+                    setState(() {
+                      _isRegisterMode = !_isRegisterMode;
+                      _error = null;
+                    });
+                  },
+            child: Text(
+              _isRegisterMode
+                  ? 'Already have account? Login'
+                  : 'No account? Register',
+              style: const TextStyle(
+                color: Color(0xFF6B8E89),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2772,6 +4153,14 @@ class ChildRecordLite {
     required this.allergyNotes,
     required this.medicalNotes,
     required this.pickupNotes,
+    required this.photoPermissionSigned,
+    required this.photoPermissionSignedAt,
+    required this.todaySummaryTags,
+    required this.todaySummaryDateKey,
+    required this.latestUpdateNote,
+    required this.latestUpdatePhotoUrl,
+    required this.latestUpdatePhotoName,
+    required this.latestUpdateCreatedAt,
   });
 
   final String id;
@@ -2781,6 +4170,14 @@ class ChildRecordLite {
   final String allergyNotes;
   final String medicalNotes;
   final String pickupNotes;
+  final bool photoPermissionSigned;
+  final DateTime? photoPermissionSignedAt;
+  final List<String> todaySummaryTags;
+  final String todaySummaryDateKey;
+  final String latestUpdateNote;
+  final String latestUpdatePhotoUrl;
+  final String latestUpdatePhotoName;
+  final DateTime? latestUpdateCreatedAt;
 
   String get fullName => '$firstName $lastName'.trim();
 
@@ -2794,7 +4191,23 @@ class ChildRecordLite {
       allergyNotes: (data['allergyNotes'] ?? '').toString(),
       medicalNotes: (data['medicalNotes'] ?? '').toString(),
       pickupNotes: (data['pickupNotes'] ?? '').toString(),
+      photoPermissionSigned: data['photoPermissionSigned'] == true,
+      photoPermissionSignedAt: _asDateTime(data['photoPermissionSignedAt']),
+      todaySummaryTags: (data['todaySummaryTags'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      todaySummaryDateKey: (data['todaySummaryDateKey'] ?? '').toString(),
+      latestUpdateNote: (data['latestUpdateNote'] ?? '').toString(),
+      latestUpdatePhotoUrl: (data['latestUpdatePhotoUrl'] ?? '').toString(),
+      latestUpdatePhotoName: (data['latestUpdatePhotoName'] ?? '').toString(),
+      latestUpdateCreatedAt: _asDateTime(data['latestUpdateCreatedAt']),
     );
+  }
+
+  static DateTime? _asDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
   }
 }
 
@@ -2923,6 +4336,39 @@ class ParentRepository {
     }
   }
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchLatestUpdate(
+    ParentContext contextData,
+    String childId,
+  ) {
+    return _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(childId)
+        .collection('latest_updates')
+        .doc('current')
+        .snapshots();
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchTodaySummary(
+    ParentContext contextData,
+    String childId,
+  ) {
+    return _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(childId)
+        .collection('today_summary')
+        .doc('current')
+        .snapshots();
+  }
+
+  static String todayDateKey() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
   Future<void> updateParentProfile({
     required ParentContext contextData,
     required String uid,
@@ -2939,6 +4385,132 @@ class ParentRepository {
           'updatedByUid': uid,
           'sourceApp': 'parent_daycare_app',
         }, SetOptions(merge: true));
+  }
+
+  Future<void> saveParentContractSignature({
+    required ParentContext contextData,
+    required String uid,
+    required bool accepted,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+  }) async {
+    try {
+      await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('parents')
+          .doc(contextData.parentId)
+          .set({
+            'parentContract': {
+              'accepted': accepted,
+              'signedName': signedName,
+              'signaturePoints': signaturePoints,
+              'signatureCaptured': signatureCaptured,
+              'signedAt': FieldValue.serverTimestamp(),
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedByUid': uid,
+            'sourceApp': 'parent_daycare_app',
+          }, SetOptions(merge: true));
+    } catch (_) {
+      await _saveParentContractSignatureViaRest(
+        tenantId: contextData.tenantId,
+        parentId: contextData.parentId,
+        uid: uid,
+        accepted: accepted,
+        signedName: signedName,
+        signaturePoints: signaturePoints,
+        signatureCaptured: signatureCaptured,
+      );
+    }
+  }
+
+  Future<void> savePhotoPermissionDocument({
+    required ParentContext contextData,
+    required String uid,
+    required ChildRecordLite child,
+    required Map<String, dynamic> parentData,
+    required bool consentGranted,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+  }) async {
+    final childRef = _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(child.id);
+    final permissionRef = childRef
+        .collection('photo_permissions')
+        .doc(contextData.parentId);
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+
+    try {
+      final batch = _db.batch();
+      batch.set(permissionRef, {
+        'parentId': contextData.parentId,
+        'parentAuthUid': uid,
+        'parentName': parentName,
+        'parentEmail': (parentData['email'] ?? '').toString(),
+        'parentPhone': (parentData['phone'] ?? '').toString(),
+        'parentAddressLine1': (parentData['addressLine1'] ?? '').toString(),
+        'parentCity': (parentData['city'] ?? '').toString(),
+        'parentState': (parentData['state'] ?? '').toString(),
+        'parentZip': (parentData['zip'] ?? '').toString(),
+        'childId': child.id,
+        'childName': child.fullName,
+        'formType': 'photo_media_permission',
+        'consentGranted': consentGranted,
+        'signedName': signedName,
+        'signaturePoints': signaturePoints,
+        'signatureCaptured': signatureCaptured,
+        'signedAt': FieldValue.serverTimestamp(),
+        'sourceApp': 'parent_daycare_app',
+        'updatedByUid': uid,
+      }, SetOptions(merge: true));
+
+      batch.set(childRef, {
+        'photoPermissionSigned': consentGranted && signatureCaptured,
+        'photoPermissionSignedAt': FieldValue.serverTimestamp(),
+        'photoPermissionSignedByParentId': contextData.parentId,
+        'photoPermissionSignedByName': signedName,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedByUid': uid,
+        'sourceApp': 'parent_daycare_app',
+      }, SetOptions(merge: true));
+
+      await batch.commit();
+    } catch (_) {
+      await _savePhotoPermissionViaRest(
+        tenantId: contextData.tenantId,
+        parentId: contextData.parentId,
+        child: child,
+        uid: uid,
+        parentData: parentData,
+        consentGranted: consentGranted,
+        signedName: signedName,
+        signaturePoints: signaturePoints,
+        signatureCaptured: signatureCaptured,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> loadPhotoPermissionDocument({
+    required ParentContext contextData,
+    required String childId,
+  }) async {
+    final doc = await _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(childId)
+        .collection('photo_permissions')
+        .doc(contextData.parentId)
+        .get();
+    return doc.data() ?? const <String, dynamic>{};
   }
 
   Future<void> createChildRequest({
@@ -2977,6 +4549,51 @@ class ParentRepository {
     }
   }
 
+  Future<void> createPickupNotification({
+    required ParentContext contextData,
+    required String uid,
+    required int etaMinutes,
+    required ChildRecordLite child,
+    required String parentFirstName,
+    required String parentLastName,
+  }) async {
+    final parentName = '$parentFirstName $parentLastName'.trim();
+    final childName = child.fullName.isEmpty ? 'Child' : child.fullName;
+    final safeParentName = parentName.isEmpty ? 'Parent' : parentName;
+    final payload = {
+      'parentId': contextData.parentId,
+      'childId': child.id,
+      'requestedByUid': uid,
+      'parentName': parentName,
+      'childName': childName,
+      'etaMinutes': etaMinutes,
+      'message':
+          '$safeParentName is on the way for pickup in about $etaMinutes minutes.',
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'sourceApp': 'parent_daycare_app',
+      'type': 'pickup_eta',
+    };
+
+    try {
+      await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('pickup_notifications')
+          .add(payload);
+    } catch (_) {
+      await _createPickupNotificationViaRest(
+        tenantId: contextData.tenantId,
+        parentId: contextData.parentId,
+        childId: child.id,
+        uid: uid,
+        parentName: parentName,
+        childName: childName,
+        etaMinutes: etaMinutes,
+      );
+    }
+  }
+
   Future<List<ChildRecordLite>> _loadChildrenViaRest(String tenantId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const <ChildRecordLite>[];
@@ -3009,8 +4626,44 @@ class ParentRepository {
         allergyNotes: _stringField(fields, 'allergyNotes'),
         medicalNotes: _stringField(fields, 'medicalNotes'),
         pickupNotes: _stringField(fields, 'pickupNotes'),
+        photoPermissionSigned:
+            (fields['photoPermissionSigned']
+                as Map<String, dynamic>?)?['booleanValue'] ==
+            true,
+        photoPermissionSignedAt: _timestampField(
+          fields,
+          'photoPermissionSignedAt',
+        ),
+        todaySummaryTags: _arrayStringField(fields, 'todaySummaryTags'),
+        todaySummaryDateKey: _stringField(fields, 'todaySummaryDateKey'),
+        latestUpdateNote: _stringField(fields, 'latestUpdateNote'),
+        latestUpdatePhotoUrl: _stringField(fields, 'latestUpdatePhotoUrl'),
+        latestUpdatePhotoName: _stringField(fields, 'latestUpdatePhotoName'),
+        latestUpdateCreatedAt: _timestampField(fields, 'latestUpdateCreatedAt'),
       );
     }).toList();
+  }
+
+  List<String> _arrayStringField(Map<String, dynamic> fields, String key) {
+    final raw = fields[key];
+    if (raw is! Map<String, dynamic>) return const <String>[];
+    final values =
+        (raw['arrayValue'] as Map<String, dynamic>?)?['values']
+            as List<dynamic>?;
+    if (values == null) return const <String>[];
+    return values
+        .whereType<Map<String, dynamic>>()
+        .map((item) => (item['stringValue'] ?? '').toString())
+        .where((value) => value.trim().isNotEmpty)
+        .toList();
+  }
+
+  DateTime? _timestampField(Map<String, dynamic> fields, String key) {
+    final raw = fields[key];
+    if (raw is! Map<String, dynamic>) return null;
+    final value = (raw['timestampValue'] ?? '').toString();
+    if (value.isEmpty) return null;
+    return DateTime.tryParse(value)?.toLocal();
   }
 
   Future<void> _createChildRequestViaRest({
@@ -3058,6 +4711,251 @@ class ParentRepository {
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Request failed (${response.statusCode})');
+    }
+  }
+
+  Future<void> _createPickupNotificationViaRest({
+    required String tenantId,
+    required String parentId,
+    required String childId,
+    required String uid,
+    required String parentName,
+    required String childName,
+    required int etaMinutes,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('No authenticated user');
+    }
+
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Missing auth token');
+    }
+
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/pickup_notifications',
+    );
+    final body = jsonEncode({
+      'fields': {
+        'parentId': {'stringValue': parentId},
+        'childId': {'stringValue': childId},
+        'requestedByUid': {'stringValue': uid},
+        'parentName': {'stringValue': parentName},
+        'childName': {'stringValue': childName},
+        'etaMinutes': {'integerValue': etaMinutes.toString()},
+        'message': {
+          'stringValue':
+              '$parentName is on the way for pickup in about $etaMinutes minutes.',
+        },
+        'status': {'stringValue': 'pending'},
+        'sourceApp': {'stringValue': 'parent_daycare_app'},
+        'type': {'stringValue': 'pickup_eta'},
+        'createdAt': {
+          'timestampValue': DateTime.now().toUtc().toIso8601String(),
+        },
+      },
+    });
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Request failed (${response.statusCode})');
+    }
+  }
+
+  Future<void> _saveParentContractSignatureViaRest({
+    required String tenantId,
+    required String parentId,
+    required String uid,
+    required bool accepted,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Missing auth token');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/parents/$parentId'
+      '?updateMask.fieldPaths=parentContract'
+      '&updateMask.fieldPaths=updatedAt'
+      '&updateMask.fieldPaths=updatedByUid'
+      '&updateMask.fieldPaths=sourceApp',
+    );
+    final body = jsonEncode({
+      'fields': {
+        'parentContract': {
+          'mapValue': {
+            'fields': {
+              'accepted': {'booleanValue': accepted},
+              'signedName': {'stringValue': signedName},
+              'signaturePoints': {
+                'arrayValue': {
+                  'values': signaturePoints
+                      .map((point) => {'stringValue': point})
+                      .toList(),
+                },
+              },
+              'signatureCaptured': {'booleanValue': signatureCaptured},
+              'signedAt': {'timestampValue': now},
+            },
+          },
+        },
+        'updatedAt': {'timestampValue': now},
+        'updatedByUid': {'stringValue': uid},
+        'sourceApp': {'stringValue': 'parent_daycare_app'},
+      },
+    });
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Contract save failed (${response.statusCode})');
+    }
+  }
+
+  Future<void> _savePhotoPermissionViaRest({
+    required String tenantId,
+    required String parentId,
+    required ChildRecordLite child,
+    required String uid,
+    required Map<String, dynamic> parentData,
+    required bool consentGranted,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Missing auth token');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+
+    final permissionUri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/${child.id}/photo_permissions/$parentId'
+      '?updateMask.fieldPaths=parentId'
+      '&updateMask.fieldPaths=parentAuthUid'
+      '&updateMask.fieldPaths=parentName'
+      '&updateMask.fieldPaths=parentEmail'
+      '&updateMask.fieldPaths=parentPhone'
+      '&updateMask.fieldPaths=parentAddressLine1'
+      '&updateMask.fieldPaths=parentCity'
+      '&updateMask.fieldPaths=parentState'
+      '&updateMask.fieldPaths=parentZip'
+      '&updateMask.fieldPaths=childId'
+      '&updateMask.fieldPaths=childName'
+      '&updateMask.fieldPaths=formType'
+      '&updateMask.fieldPaths=consentGranted'
+      '&updateMask.fieldPaths=signedName'
+      '&updateMask.fieldPaths=signaturePoints'
+      '&updateMask.fieldPaths=signatureCaptured'
+      '&updateMask.fieldPaths=signedAt'
+      '&updateMask.fieldPaths=sourceApp'
+      '&updateMask.fieldPaths=updatedByUid',
+    );
+    final permissionBody = jsonEncode({
+      'fields': {
+        'parentId': {'stringValue': parentId},
+        'parentAuthUid': {'stringValue': uid},
+        'parentName': {'stringValue': parentName},
+        'parentEmail': {'stringValue': (parentData['email'] ?? '').toString()},
+        'parentPhone': {'stringValue': (parentData['phone'] ?? '').toString()},
+        'parentAddressLine1': {
+          'stringValue': (parentData['addressLine1'] ?? '').toString(),
+        },
+        'parentCity': {'stringValue': (parentData['city'] ?? '').toString()},
+        'parentState': {'stringValue': (parentData['state'] ?? '').toString()},
+        'parentZip': {'stringValue': (parentData['zip'] ?? '').toString()},
+        'childId': {'stringValue': child.id},
+        'childName': {'stringValue': child.fullName},
+        'formType': {'stringValue': 'photo_media_permission'},
+        'consentGranted': {'booleanValue': consentGranted},
+        'signedName': {'stringValue': signedName},
+        'signaturePoints': {
+          'arrayValue': {
+            'values': signaturePoints
+                .map((point) => {'stringValue': point})
+                .toList(),
+          },
+        },
+        'signatureCaptured': {'booleanValue': signatureCaptured},
+        'signedAt': {'timestampValue': now},
+        'sourceApp': {'stringValue': 'parent_daycare_app'},
+        'updatedByUid': {'stringValue': uid},
+      },
+    });
+    final permissionResponse = await http.patch(
+      permissionUri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: permissionBody,
+    );
+    if (permissionResponse.statusCode < 200 ||
+        permissionResponse.statusCode >= 300) {
+      throw Exception(
+        'Permission save failed (${permissionResponse.statusCode})',
+      );
+    }
+
+    final childUri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/${child.id}'
+      '?updateMask.fieldPaths=photoPermissionSigned'
+      '&updateMask.fieldPaths=photoPermissionSignedAt'
+      '&updateMask.fieldPaths=photoPermissionSignedByParentId'
+      '&updateMask.fieldPaths=photoPermissionSignedByName'
+      '&updateMask.fieldPaths=updatedAt'
+      '&updateMask.fieldPaths=updatedByUid'
+      '&updateMask.fieldPaths=sourceApp',
+    );
+    final childBody = jsonEncode({
+      'fields': {
+        'photoPermissionSigned': {
+          'booleanValue': consentGranted && signatureCaptured,
+        },
+        'photoPermissionSignedAt': {'timestampValue': now},
+        'photoPermissionSignedByParentId': {'stringValue': parentId},
+        'photoPermissionSignedByName': {'stringValue': signedName},
+        'updatedAt': {'timestampValue': now},
+        'updatedByUid': {'stringValue': uid},
+        'sourceApp': {'stringValue': 'parent_daycare_app'},
+      },
+    });
+    final childResponse = await http.patch(
+      childUri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: childBody,
+    );
+    if (childResponse.statusCode < 200 || childResponse.statusCode >= 300) {
+      throw Exception(
+        'Child permission update failed (${childResponse.statusCode})',
+      );
     }
   }
 }
