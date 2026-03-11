@@ -45,48 +45,45 @@ class FormPdfBuilder {
   }
 
   static Future<Uint8List> buildPhotoPermissionPdf({
-    required String parentName,
-    required String parentEmail,
-    required String parentPhone,
-    required String parentAddress,
+    required String languageCode,
+    required String daycareName,
+    required String daycareAddress,
+    required String daycarePhone,
     required String childName,
+    required String childDateOfBirthText,
+    required String parentGuardianName,
+    required bool internalCommunicationApproved,
+    required bool publicWebsiteApproved,
     required String signedName,
-    required bool signed,
     required DateTime? signedAt,
     required List<String> signaturePoints,
   }) async {
+    final isSpanish = languageCode == 'es';
     final doc = pw.Document();
     doc.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageTheme: _theme(),
-        build: (_) => [
-          _header(
-            'Photo & Media Permission',
-            signed
-                ? '$childName permission signed'
-                : '$childName permission pending',
-          ),
-          _detailCard([
-            _detail('Parent Name', parentName),
-            _detail('Email', parentEmail),
-            _detail('Phone', parentPhone),
-            _detail('Address', parentAddress),
-            _detail('Child', childName),
-            _detail('Permission', signed ? 'Granted' : 'Pending'),
-            _detail('Signed Name', signedName),
-            _detail('Signed At', _formatDate(signedAt)),
-          ]),
-          _bodyCard(
-            'I authorize the daycare to capture and share approved photos or classroom updates of my child with the linked parent account in CareSync. I understand this permission is only for parent-facing updates and can be revoked later through the daycare.',
-          ),
-          _signatureSection(signaturePoints),
-        ],
+        build: (_) => _photoPermissionTemplate(
+          isSpanish: isSpanish,
+          daycareName: daycareName,
+          daycareAddress: daycareAddress,
+          daycarePhone: daycarePhone,
+          childName: childName,
+          childDateOfBirthText: childDateOfBirthText,
+          parentGuardianName: parentGuardianName,
+          internalCommunicationApproved: internalCommunicationApproved,
+          publicWebsiteApproved: publicWebsiteApproved,
+          signedName: signedName,
+          signedAt: signedAt,
+          signaturePoints: signaturePoints,
+        ),
       ),
     );
     return doc.save();
   }
 
   static pw.PageTheme _theme() => pw.PageTheme(
+    pageFormat: PdfPageFormat.letter,
     margin: const pw.EdgeInsets.all(32),
     theme: pw.ThemeData.withFont(
       base: pw.Font.helvetica(),
@@ -175,6 +172,188 @@ class FormPdfBuilder {
     );
   }
 
+  static pw.Widget _photoPermissionTemplate({
+    required bool isSpanish,
+    required String daycareName,
+    required String daycareAddress,
+    required String daycarePhone,
+    required String childName,
+    required String childDateOfBirthText,
+    required String parentGuardianName,
+    required bool internalCommunicationApproved,
+    required bool publicWebsiteApproved,
+    required String signedName,
+    required DateTime? signedAt,
+    required List<String> signaturePoints,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          isSpanish
+              ? 'FORMULARIO DE CONSENTIMIENTO DE FOTOS Y MEDIOS'
+              : 'DAYCARE PHOTO & MEDIA CONSENT FORM',
+          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 6),
+        _detail(
+          isSpanish ? 'Nombre del Daycare' : 'Daycare Name',
+          daycareName,
+        ),
+        _detail(isSpanish ? 'Dirección' : 'Address', daycareAddress),
+        _detail(isSpanish ? 'Teléfono' : 'Phone', daycarePhone),
+        pw.SizedBox(height: 8),
+        _sectionHeading(
+          isSpanish
+              ? 'SECCIÓN 1: INFORMACIÓN DEL NIÑO(A)'
+              : 'SECTION 1: CHILD INFORMATION',
+        ),
+        pw.SizedBox(height: 5),
+        _detail(
+          isSpanish ? 'Nombre Completo del Niño(a)' : 'Child\'s Full Name',
+          childName,
+        ),
+        _detail(
+          isSpanish ? 'Fecha de Nacimiento' : 'Date of Birth',
+          childDateOfBirthText,
+        ),
+        _detail(
+          isSpanish
+              ? 'Nombre del Padre/Tutor'
+              : 'Parent/Guardian Name',
+          parentGuardianName,
+        ),
+        pw.SizedBox(height: 8),
+        _sectionHeading(
+          isSpanish
+              ? 'SECCIÓN 2: DECLARACIÓN DE CONSENTIMIENTO'
+              : 'SECTION 2: STATEMENT OF CONSENT',
+        ),
+        pw.SizedBox(height: 5),
+        pw.Text(
+          isSpanish
+              ? 'En cumplimiento con las pautas establecidas por la Oficina de Primera Infancia de Connecticut (OEC), ${daycareName.isEmpty ? 'el daycare' : daycareName} requiere el consentimiento explícito por escrito de un padre o tutor legal para tomar y utilizar fotografías o videos de su hijo/a.'
+              : 'In compliance with the guidelines set forth by the Connecticut Office of Early Childhood (OEC), ${daycareName.isEmpty ? 'the daycare' : daycareName} requires explicit written consent from a parent or legal guardian to take and use photographs or videos of your child.',
+          style: const pw.TextStyle(fontSize: 9.2, lineSpacing: 2),
+        ),
+        pw.SizedBox(height: 5),
+        pw.Text(
+          isSpanish
+              ? 'Nos encanta compartir con usted los logros y actividades diarias de su hijo/a, y también nos gusta celebrar nuestra comunidad en línea. Por favor, revise las opciones a continuación e indique sus preferencias. Puede actualizar este permiso en cualquier momento solicitando un nuevo formulario.'
+              : 'We love sharing your child\'s milestones and daily activities with you, and we also like to celebrate our daycare community online. Please review the options below and indicate your preferences. You may update this consent at any time by requesting a new form.',
+          style: const pw.TextStyle(fontSize: 9.2, lineSpacing: 2),
+        ),
+        pw.SizedBox(height: 8),
+        _sectionHeading(
+          isSpanish
+              ? 'SECCIÓN 3: OPCIONES DE PERMISO'
+              : 'SECTION 3: PERMISSION OPTIONS',
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          isSpanish
+              ? '(Por favor marque "SÍ" o "NO" en cada opción)'
+              : '(Please check "YES" or "NO" for each item)',
+          style: const pw.TextStyle(fontSize: 9.2),
+        ),
+        pw.SizedBox(height: 5),
+        _permissionOption(
+          title: isSpanish
+              ? '1. Comunicación Interna (Actualizaciones para los padres)'
+              : '1. Internal Communication (Updates to Parents)',
+          body: isSpanish
+              ? 'Doy permiso para que se tomen fotos/videos de mi hijo/a durante las actividades diarias y se compartan directamente conmigo y otros padres del programa (ej. a través de una aplicación segura del daycare, correo electrónico directo o manualidades impresas en el aula).'
+              : 'I give permission for my child\'s photo/video to be taken during daily activities and shared directly with me and other parents within the program (e.g., via a secure daycare app, direct email, or printed classroom crafts).',
+          approved: internalCommunicationApproved,
+          isSpanish: isSpanish,
+        ),
+        pw.SizedBox(height: 6),
+        _permissionOption(
+          title: isSpanish
+              ? '2. Redes Sociales y Página Web Pública'
+              : '2. Social Media & Public Website',
+          body: isSpanish
+              ? 'Doy permiso para que la foto/video de mi hijo/a se utilice en las páginas oficiales de redes sociales del daycare (Facebook, Instagram, etc.) y en la página web pública con fines promocionales y comunitarios. (Nota de privacidad: NUNCA se publicarán los nombres completos de los niños en internet).'
+              : 'I give permission for my child\'s photo/video to be used on the daycare\'s official social media pages (Facebook, Instagram, etc.) and public website for promotional and community purposes. (Privacy Note: Children\'s full names will NEVER be posted publicly).',
+          approved: publicWebsiteApproved,
+          isSpanish: isSpanish,
+        ),
+        pw.SizedBox(height: 8),
+        _sectionHeading(isSpanish ? 'SECCIÓN 4: FIRMA' : 'SECTION 4: SIGNATURE'),
+        pw.SizedBox(height: 5),
+        pw.Text(
+          isSpanish
+              ? 'Al firmar a continuación, confirmo que soy el padre o tutor legal del niño/a nombrado anteriormente y que he elegido los permisos marcados. Entiendo que este formulario se mantendrá en el archivo oficial de mi hijo/a.'
+              : 'By signing below, I confirm that I am the legal parent or guardian of the child named above and that I have chosen the permissions as marked. I understand that this form will be kept on file in my child\'s official records.',
+          style: const pw.TextStyle(fontSize: 9.2, lineSpacing: 2),
+        ),
+        pw.SizedBox(height: 6),
+        pw.Text(
+          isSpanish ? 'Firma del Padre o Tutor:' : 'Parent/Guardian Signature:',
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 4),
+        _signatureSection(signaturePoints),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          signedName.trim().isEmpty ? '-' : signedName,
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 6),
+        _detail(isSpanish ? 'Fecha' : 'Date', _formatDate(signedAt)),
+      ],
+    );
+  }
+
+  static pw.Widget _sectionHeading(String text) {
+    return pw.Text(
+      text,
+      style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+    );
+  }
+
+  static pw.Widget _permissionOption({
+    required String title,
+    required String body,
+    required bool approved,
+    required bool isSpanish,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(title, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 4),
+        pw.Text(body, style: const pw.TextStyle(fontSize: 9.2, lineSpacing: 2)),
+        pw.SizedBox(height: 4),
+        pw.Row(
+          children: [
+            _checkBox(approved),
+            pw.SizedBox(width: 6),
+            pw.Text(isSpanish ? 'SÍ' : 'YES'),
+            pw.SizedBox(width: 18),
+            _checkBox(!approved),
+            pw.SizedBox(width: 6),
+            pw.Text('NO'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static pw.Widget _checkBox(bool checked) {
+    return pw.Container(
+      width: 12,
+      height: 12,
+      alignment: pw.Alignment.center,
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColors.black),
+      ),
+      child: checked
+          ? pw.Text('X', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))
+          : null,
+    );
+  }
+
   static pw.Widget _signatureSection(List<String> encodedPoints) {
     final svg = _signatureSvg(encodedPoints);
     return pw.Container(
@@ -189,9 +368,9 @@ class FormPdfBuilder {
           pw.SizedBox(height: 8),
           if (svg != null)
             pw.Container(
-              height: 160,
+              height: 76,
               width: double.infinity,
-              padding: const pw.EdgeInsets.all(10),
+              padding: const pw.EdgeInsets.all(6),
               decoration: pw.BoxDecoration(
                 color: PdfColor.fromInt(0xFFF8FBFF),
                 borderRadius: pw.BorderRadius.circular(16),
@@ -202,7 +381,7 @@ class FormPdfBuilder {
           else
             pw.Container(
               width: double.infinity,
-              padding: const pw.EdgeInsets.all(16),
+              padding: const pw.EdgeInsets.all(10),
               decoration: pw.BoxDecoration(
                 color: PdfColor.fromInt(0xFFF8FBFF),
                 borderRadius: pw.BorderRadius.circular(16),

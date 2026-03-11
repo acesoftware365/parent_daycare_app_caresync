@@ -1,20 +1,21 @@
 import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'form_document_pdf.dart';
 import 'firebase_options.dart';
+import 'form_document_pdf.dart';
+import 'pdf_web_helper_stub.dart'
+    if (dart.library.html) 'pdf_web_helper_web.dart';
 
-const _appVersion = '1.2.26+39';
+const _appVersion = '1.2.43+56';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -203,7 +204,7 @@ class _ParentHomeShellState extends State<ParentHomeShell> {
       ChildPage(contextData: widget.contextData, uid: widget.user.uid),
       ProfilePage(contextData: widget.contextData, uid: widget.user.uid),
       FormsPage(contextData: widget.contextData, uid: widget.user.uid),
-      const BillingPage(),
+      BillingPage(contextData: widget.contextData),
     ];
 
     const titles = ['Home', 'Child', 'Profile', 'Form', 'Billing'];
@@ -464,7 +465,7 @@ class _DesktopTopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Sunshine Kids Daycare',
+                  'CareSync Parent App',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -588,58 +589,77 @@ class _HomePageState extends State<HomePage> {
       stream: ParentRepository().watchParentDoc(widget.contextData),
       builder: (context, parentSnap) {
         final parent = parentSnap.data?.data() ?? const <String, dynamic>{};
-        final daycareName =
-            (parent['daycareName'] ??
-                    parent['businessName'] ??
-                    'Sunshine Kids Daycare')
-                .toString()
-                .toUpperCase();
-
-        return StreamBuilder<List<ChildRecordLite>>(
-          stream: ParentRepository().watchChildrenForTenant(widget.contextData),
-          builder: (context, childSnap) {
-            final children = childSnap.data ?? const <ChildRecordLite>[];
-            final linkedChildren = children
-                .where((c) => c.parentId == widget.contextData.parentId)
-                .toList();
-            final selected = _resolveSelectedChild(linkedChildren);
-            final childName = selected?.fullName.isNotEmpty == true
-                ? selected!.fullName
-                : 'Emma Polanco';
-            final hero = _homeHero(
-              daycareName,
-              childName,
-              linkedChildren,
-              selected?.id,
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: ParentRepository().watchTenantDoc(widget.contextData.tenantId),
+          builder: (context, tenantSnap) {
+            final tenantData =
+                tenantSnap.data?.data() ?? const <String, dynamic>{};
+            final daycareName = _tenantDisplayName(
+              tenantData,
+              tenantId: widget.contextData.tenantId,
+              uppercase: true,
             );
-            final etaCard = _homeEtaCard(context, selected, childName, parent);
-            final summaryCard = _homeSummaryCard(selected);
-            final latestCard = _homeLatestCard(selected);
-            final quickActionsCard = _homeQuickActionsCard();
-            final feedbackCard = _homeFeedbackCard(context, childName);
-            final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-            if (!isWide) {
-              return ListView(
-                children: [
-                  hero,
-                  const SizedBox(height: 14),
-                  etaCard,
-                  const SizedBox(height: 14),
-                  summaryCard,
-                  const SizedBox(height: 14),
-                  latestCard,
-                  const SizedBox(height: 14),
-                  quickActionsCard,
-                  const SizedBox(height: 14),
-                  feedbackCard,
-                ],
-              );
-            }
+            return StreamBuilder<List<ChildRecordLite>>(
+              stream: ParentRepository().watchChildrenForTenant(
+                widget.contextData,
+              ),
+              builder: (context, childSnap) {
+                final children = childSnap.data ?? const <ChildRecordLite>[];
+                final linkedChildren = children
+                    .where((c) => c.parentId == widget.contextData.parentId)
+                    .toList();
+                final selected = _resolveSelectedChild(linkedChildren);
+                final childName = selected?.fullName.isNotEmpty == true
+                    ? selected!.fullName
+                    : 'Emma Polanco';
+                final hero = _homeHero(
+                  childName,
+                  linkedChildren,
+                  selected?.id,
+                );
+                final etaCard = _homeEtaCard(
+                  context,
+                  selected,
+                  childName,
+                  parent,
+                );
+                final summaryCard = _homeSummaryCard(selected);
+                final latestCard = _homeLatestCard(selected);
+                final quickActionsCard = _homeQuickActionsCard();
+                final feedbackCard = _homeFeedbackCard(context, childName);
+                final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-            return _ResponsiveTwoColumn(
-              mainChildren: [hero, latestCard, feedbackCard],
-              sideChildren: [etaCard, summaryCard, quickActionsCard],
+                if (!isWide) {
+                  return ListView(
+                    children: [
+                      _pageTenantHeading(daycareName),
+                      const SizedBox(height: 12),
+                      hero,
+                      const SizedBox(height: 14),
+                      etaCard,
+                      const SizedBox(height: 14),
+                      summaryCard,
+                      const SizedBox(height: 14),
+                      latestCard,
+                      const SizedBox(height: 14),
+                      quickActionsCard,
+                      const SizedBox(height: 14),
+                      feedbackCard,
+                    ],
+                  );
+                }
+
+                return _ResponsiveTwoColumn(
+                  mainChildren: [
+                    _pageTenantHeading(daycareName),
+                    hero,
+                    latestCard,
+                    feedbackCard,
+                  ],
+                  sideChildren: [etaCard, summaryCard, quickActionsCard],
+                );
+              },
             );
           },
         );
@@ -662,7 +682,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _homeHero(
-    String daycareName,
     String childName,
     List<ChildRecordLite> linkedChildren,
     String? selectedChildId,
@@ -682,16 +701,6 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  daycareName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    letterSpacing: 1,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF5D6B7A),
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Text(
                   childName,
                   style: const TextStyle(
@@ -777,6 +786,20 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _pageTenantHeading(String daycareName) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Text(
+        daycareName,
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF526171),
+        ),
       ),
     );
   }
@@ -1281,98 +1304,108 @@ class _ChildPageState extends State<ChildPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<ChildRecordLite>>(
-      stream: ParentRepository().watchChildrenForTenant(widget.contextData),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _SectionCard(
-            title: 'Child',
-            child: Text('Read error: ${snapshot.error}'),
-          );
-        }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: ParentRepository().watchTenantDoc(widget.contextData.tenantId),
+      builder: (context, tenantSnapshot) {
+        final tenantData =
+            tenantSnapshot.data?.data() ?? const <String, dynamic>{};
+        final daycareName = _tenantDisplayName(tenantData, uppercase: true);
 
-        final children = snapshot.data ?? const <ChildRecordLite>[];
-        final linked = children
-            .where((c) => c.parentId == widget.contextData.parentId)
-            .toList();
+        return StreamBuilder<List<ChildRecordLite>>(
+          stream: ParentRepository().watchChildrenForTenant(widget.contextData),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _SectionCard(
+                title: 'Child',
+                child: Text('Read error: ${snapshot.error}'),
+              );
+            }
 
-        final displayChildren = linked.isEmpty
-            ? const [
-                _DisplayChild(
-                  name: 'Emma Polanco',
-                  age: 3,
-                  emoji: '👧',
-                  tone: 0,
-                ),
-                _DisplayChild(
-                  name: 'Lucas Polanco',
-                  age: 5,
-                  emoji: '👦',
-                  tone: 1,
-                ),
-              ]
-            : linked
-                  .asMap()
-                  .entries
-                  .map(
-                    (entry) => _DisplayChild(
-                      name: entry.value.fullName.isEmpty
-                          ? 'Child ${entry.key + 1}'
-                          : entry.value.fullName,
-                      age: entry.value.id.hashCode.abs() % 7 + 2,
-                      emoji: entry.key.isEven ? '👧' : '👦',
-                      tone: entry.key % 2,
+            final children = snapshot.data ?? const <ChildRecordLite>[];
+            final linked = children
+                .where((c) => c.parentId == widget.contextData.parentId)
+                .toList();
+
+            final displayChildren = linked.isEmpty
+                ? const [
+                    _DisplayChild(
+                      name: 'Emma Polanco',
+                      age: 3,
+                      emoji: '👧',
+                      tone: 0,
                     ),
-                  )
-                  .toList();
-        final header = _childHeader();
-        final childCards = displayChildren
-            .map((item) => _childCard(item))
-            .toList();
-        final isWide = MediaQuery.sizeOf(context).width >= 900;
+                    _DisplayChild(
+                      name: 'Lucas Polanco',
+                      age: 5,
+                      emoji: '👦',
+                      tone: 1,
+                    ),
+                  ]
+                : linked
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => _DisplayChild(
+                          name: entry.value.fullName.isEmpty
+                              ? 'Child ${entry.key + 1}'
+                              : entry.value.fullName,
+                          age: entry.value.id.hashCode.abs() % 7 + 2,
+                          emoji: entry.key.isEven ? '👧' : '👦',
+                          tone: entry.key % 2,
+                        ),
+                      )
+                      .toList();
+            final header = _childHeader(daycareName);
+            final childCards = displayChildren
+                .map((item) => _childCard(item))
+                .toList();
+            final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-        if (!isWide) {
-          return ListView(
-            children: [
-              header,
-              const SizedBox(height: 14),
-              ...displayChildren.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _childCard(item),
+            if (!isWide) {
+              return ListView(
+                children: [
+                  header,
+                  const SizedBox(height: 14),
+                  ...displayChildren.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _childCard(item),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return SingleChildScrollView(
+              child: _ResponsiveContentFrame(
+                child: Column(
+                  children: [
+                    header,
+                    const SizedBox(height: 18),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 1.55,
+                          ),
+                      itemCount: childCards.length,
+                      itemBuilder: (context, index) => childCards[index],
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        }
-
-        return SingleChildScrollView(
-          child: _ResponsiveContentFrame(
-            child: Column(
-              children: [
-                header,
-                const SizedBox(height: 18),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1.55,
-                  ),
-                  itemCount: childCards.length,
-                  itemBuilder: (context, index) => childCards[index],
-                ),
-              ],
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  Widget _childHeader() {
+  Widget _childHeader(String daycareName) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1383,13 +1416,13 @@ class _ChildPageState extends State<ChildPage> {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SUNSHINE KIDS DAYCARE',
-                  style: TextStyle(
+                  daycareName,
+                  style: const TextStyle(
                     fontSize: 14,
                     letterSpacing: 1,
                     fontWeight: FontWeight.w700,
@@ -1699,22 +1732,29 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: ParentRepository().watchParentDoc(contextData),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? const <String, dynamic>{};
-        final firstName = (data['firstName'] ?? '').toString();
-        final lastName = (data['lastName'] ?? '').toString();
-        final fullName = '$firstName $lastName'.trim().isEmpty
-            ? 'Juan Polanco'
-            : '$firstName $lastName'.trim();
-        final phone = (data['phone'] ?? '(203) 555-0184').toString();
-        final email = (data['email'] ?? 'juan@email.com').toString();
-        final header = _profileHeader();
-        final summary = _profileSummary(fullName, phone, email);
-        final pickups = _profileGroup(
-          title: 'AUTHORIZED PICKUP',
-          trailing: const _TinyGreenPill(label: 'Add'),
-          child: const Column(
+      stream: ParentRepository().watchTenantDoc(contextData.tenantId),
+      builder: (context, tenantSnapshot) {
+        final tenantData =
+            tenantSnapshot.data?.data() ?? const <String, dynamic>{};
+        final daycareName = _tenantDisplayName(tenantData, uppercase: true);
+
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: ParentRepository().watchParentDoc(contextData),
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data() ?? const <String, dynamic>{};
+            final firstName = (data['firstName'] ?? '').toString();
+            final lastName = (data['lastName'] ?? '').toString();
+            final fullName = '$firstName $lastName'.trim().isEmpty
+                ? 'Juan Polanco'
+                : '$firstName $lastName'.trim();
+            final phone = (data['phone'] ?? '(203) 555-0184').toString();
+            final email = (data['email'] ?? 'juan@email.com').toString();
+            final header = _profileHeader(daycareName);
+            final summary = _profileSummary(fullName, phone, email);
+            final pickups = _profileGroup(
+              title: 'AUTHORIZED PICKUP',
+              trailing: const _TinyGreenPill(label: 'Add'),
+              child: const Column(
             children: [
               _SoftListRow(
                 text: 'Juan Polanco · Father',
@@ -1733,9 +1773,9 @@ class ProfilePage extends StatelessWidget {
             ],
           ),
         );
-        final emergency = _profileGroup(
-          title: 'EMERGENCY CONTACTS',
-          child: const Column(
+            final emergency = _profileGroup(
+              title: 'EMERGENCY CONTACTS',
+              child: const Column(
             children: [
               _EmergencyCard(
                 title: 'Emergency Contact 1',
@@ -1751,31 +1791,33 @@ class ProfilePage extends StatelessWidget {
             ],
           ),
         );
-        final isWide = MediaQuery.sizeOf(context).width >= 900;
+            final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-        if (!isWide) {
-          return ListView(
-            children: [
-              header,
-              const SizedBox(height: 14),
-              summary,
-              const SizedBox(height: 14),
-              pickups,
-              const SizedBox(height: 14),
-              emergency,
-            ],
-          );
-        }
+            if (!isWide) {
+              return ListView(
+                children: [
+                  header,
+                  const SizedBox(height: 14),
+                  summary,
+                  const SizedBox(height: 14),
+                  pickups,
+                  const SizedBox(height: 14),
+                  emergency,
+                ],
+              );
+            }
 
-        return _ResponsiveTwoColumn(
-          mainChildren: [header, summary],
-          sideChildren: [pickups, emergency],
+            return _ResponsiveTwoColumn(
+              mainChildren: [header, summary],
+              sideChildren: [pickups, emergency],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _profileHeader() {
+  Widget _profileHeader(String daycareName) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1784,7 +1826,7 @@ class ProfilePage extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: const Row(
+      child: Row(
         children: [
           SizedBox(
             width: 64,
@@ -1803,8 +1845,8 @@ class ProfilePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SUNSHINE KIDS DAYCARE',
-                  style: TextStyle(
+                  daycareName,
+                  style: const TextStyle(
                     fontSize: 14,
                     letterSpacing: 1,
                     fontWeight: FontWeight.w700,
@@ -2087,31 +2129,54 @@ class _FormsPageState extends State<FormsPage> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: ParentRepository().watchParentDoc(widget.contextData),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() ?? const <String, dynamic>{};
-        final contract =
-            (data['parentContract'] as Map<String, dynamic>?) ??
-            const <String, dynamic>{};
+      stream: ParentRepository().watchTenantDoc(widget.contextData.tenantId),
+      builder: (context, tenantSnapshot) {
+        final tenantData =
+            tenantSnapshot.data?.data() ?? const <String, dynamic>{};
+        final daycareName = _tenantDisplayName(tenantData, uppercase: true);
 
-        if (!_initialized) {
-          _accepted = contract['accepted'] == true;
-          _signName.text = (contract['signedName'] ?? '').toString();
-          _signaturePoints = _decodeSignaturePoints(
-            contract['signaturePoints'] as List<dynamic>?,
-          );
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: ParentRepository().watchParentDoc(widget.contextData),
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data() ?? const <String, dynamic>{};
+            final contract =
+                (data['parentContract'] as Map<String, dynamic>?) ??
+                const <String, dynamic>{};
+        final contractAccepted = contract['accepted'] == true;
+        final contractSignedName = (contract['signedName'] ?? '')
+            .toString()
+            .trim();
+        final contractSignaturePoints = _decodeSignaturePoints(
+          contract['signaturePoints'] as List<dynamic>?,
+        );
+
+        if (!_initialized ||
+            (contractAccepted &&
+                contractSignedName.isNotEmpty &&
+                contractSignaturePoints.any((point) => point != null) &&
+                (_accepted != contractAccepted ||
+                    _signName.text.trim() != contractSignedName ||
+                    _encodeSignaturePoints(_signaturePoints).join('|') !=
+                        _encodeSignaturePoints(contractSignaturePoints).join(
+                          '|',
+                        )))) {
+          _accepted = contractAccepted;
+          _signName.text = contractSignedName;
+          _signaturePoints = contractSignaturePoints;
           _initialized = true;
         }
-        return StreamBuilder<List<ChildRecordLite>>(
-          stream: ParentRepository().watchChildrenForTenant(widget.contextData),
-          builder: (context, childSnapshot) {
-            final children = childSnapshot.data ?? const <ChildRecordLite>[];
-            final linkedChildren = children
-                .where((c) => c.parentId == widget.contextData.parentId)
-                .toList();
+            return StreamBuilder<List<ChildRecordLite>>(
+              stream: ParentRepository().watchChildrenForTenant(
+                widget.contextData,
+              ),
+              builder: (context, childSnapshot) {
+                final children = childSnapshot.data ?? const <ChildRecordLite>[];
+                final linkedChildren = children
+                    .where((c) => c.parentId == widget.contextData.parentId)
+                    .toList();
 
-            final header = _formsHeader();
-            final addSignature = Row(
+                final header = _formsHeader(daycareName);
+                final addSignature = Row(
               children: [
                 Expanded(
                   child: FilledButton(
@@ -2151,30 +2216,35 @@ class _FormsPageState extends State<FormsPage> {
                 ),
               ],
             );
-            final photoPermission = _photoPermissionCard(data, linkedChildren);
-            final pending = _formsPendingCard(data, linkedChildren);
-            final docs = _formsDocsCard();
-            final isWide = MediaQuery.sizeOf(context).width >= 900;
+                final photoPermission = _photoPermissionCard(
+                  data,
+                  linkedChildren,
+                );
+                final pending = _formsPendingCard(data, linkedChildren);
+                final docs = _formsDocsCard();
+                final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-            if (!isWide) {
-              return ListView(
-                children: [
-                  header,
-                  const SizedBox(height: 14),
-                  addSignature,
-                  const SizedBox(height: 14),
-                  photoPermission,
-                  const SizedBox(height: 14),
-                  pending,
-                  const SizedBox(height: 14),
-                  docs,
-                ],
-              );
-            }
+                if (!isWide) {
+                  return ListView(
+                    children: [
+                      header,
+                      const SizedBox(height: 14),
+                      addSignature,
+                      const SizedBox(height: 14),
+                      photoPermission,
+                      const SizedBox(height: 14),
+                      pending,
+                      const SizedBox(height: 14),
+                      docs,
+                    ],
+                  );
+                }
 
-            return _ResponsiveTwoColumn(
-              mainChildren: [header, photoPermission, docs],
-              sideChildren: [addSignature, pending],
+                return _ResponsiveTwoColumn(
+                  mainChildren: [header, photoPermission, docs],
+                  sideChildren: [addSignature, pending],
+                );
+              },
             );
           },
         );
@@ -2182,7 +2252,7 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
-  Widget _formsHeader() {
+  Widget _formsHeader(String daycareName) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2191,7 +2261,7 @@ class _FormsPageState extends State<FormsPage> {
         ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: const Row(
+      child: Row(
         children: [
           SizedBox(
             width: 64,
@@ -2210,8 +2280,8 @@ class _FormsPageState extends State<FormsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SUNSHINE KIDS DAYCARE',
-                  style: TextStyle(
+                  daycareName,
+                  style: const TextStyle(
                     fontSize: 14,
                     letterSpacing: 1,
                     fontWeight: FontWeight.w700,
@@ -2245,9 +2315,7 @@ class _FormsPageState extends State<FormsPage> {
     Map<String, dynamic> parentData,
     List<ChildRecordLite> linkedChildren,
   ) {
-    final pendingCount =
-        (_accepted ? 0 : 1) +
-        linkedChildren.where((child) => !child.photoPermissionSigned).length;
+    final pendingCount = _accepted ? 0 : 1;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2298,29 +2366,6 @@ class _FormsPageState extends State<FormsPage> {
             onView: _saving
                 ? null
                 : () => _openSavedContractSignatureViewer(parentData),
-          ),
-          ...linkedChildren.map(
-            (child) => Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: _PendingSignCard(
-                title:
-                    '${child.fullName.isEmpty ? 'Child' : child.fullName} Photo Permission',
-                subtitle: child.photoPermissionSigned
-                    ? 'Signed and available for daycare updates'
-                    : 'Permission for photo sharing is still pending',
-                color: child.photoPermissionSigned
-                    ? const Color(0xFFE4F6EB)
-                    : const Color(0xFFF4E7EB),
-                onSign: _saving
-                    ? null
-                    : () => _signPhotoPermissionWithSavedSignature(
-                        data: parentData,
-                        child: child,
-                      ),
-                onView: () =>
-                    _openPhotoPermissionViewer(data: parentData, child: child),
-              ),
-            ),
           ),
         ],
       ),
@@ -2481,57 +2526,6 @@ class _FormsPageState extends State<FormsPage> {
                                   ),
                                   signatureCaptured: signatureCaptured,
                                 );
-                            try {
-                              final pdfBytes =
-                                  await FormPdfBuilder.buildContractPdf(
-                                    parentName:
-                                        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
-                                            .trim(),
-                                    parentEmail: (parentData['email'] ?? '')
-                                        .toString(),
-                                    parentPhone: (parentData['phone'] ?? '')
-                                        .toString(),
-                                    parentAddress:
-                                        [
-                                              (parentData['addressLine1'] ?? '')
-                                                  .toString(),
-                                              (parentData['city'] ?? '')
-                                                  .toString(),
-                                              (parentData['state'] ?? '')
-                                                  .toString(),
-                                              (parentData['zip'] ?? '')
-                                                  .toString(),
-                                            ]
-                                            .where(
-                                              (part) => part.trim().isNotEmpty,
-                                            )
-                                            .join(', '),
-                                    signedName: trimmedName,
-                                    signed: acceptedLocal,
-                                    signedAt: DateTime.now(),
-                                    signaturePoints: _encodeSignaturePoints(
-                                      pointsLocal,
-                                    ),
-                                  );
-                              final upload = await ParentRepository()
-                                  .uploadParentFormPdf(
-                                    tenantId: widget.contextData.tenantId,
-                                    parentId: widget.contextData.parentId,
-                                    documentKey: 'daycare_contract',
-                                    fileName: 'daycare_contract.pdf',
-                                    bytes: pdfBytes,
-                                  );
-                              await ParentRepository()
-                                  .saveParentContractPdfMetadata(
-                                    contextData: widget.contextData,
-                                    uid: widget.uid,
-                                    pdfUrl: upload.url,
-                                    pdfPath: upload.path,
-                                    pdfName: upload.fileName,
-                                  );
-                            } on FirebaseException {
-                              // Keep the signature save successful even if the PDF upload fails.
-                            }
                             if (!mounted) return;
                             setState(() {
                               _accepted = acceptedLocal;
@@ -2571,42 +2565,175 @@ class _FormsPageState extends State<FormsPage> {
   Future<void> _openSavedContractSignatureViewer(
     Map<String, dynamic> data,
   ) async {
+    Map<String, dynamic> resolvedData = data;
+    var usedFallback = false;
+    try {
+      final latestData = await ParentRepository().loadParentDoc(
+        widget.contextData,
+      );
+      if (latestData.isNotEmpty) {
+        resolvedData = latestData;
+      } else {
+        usedFallback = true;
+      }
+    } catch (_) {
+      usedFallback = true;
+    }
+    final fallbackContract = <String, dynamic>{
+      'accepted': _accepted,
+      'signedName': _signName.text.trim(),
+      'signaturePoints': _encodeSignaturePoints(_signaturePoints),
+    };
     final contract =
-        (data['parentContract'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{};
+        (resolvedData['parentContract'] as Map<String, dynamic>?) ??
+        fallbackContract;
     final parentName =
-        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
+        '${(resolvedData['firstName'] ?? '').toString()} ${(resolvedData['lastName'] ?? '').toString()}'
             .trim();
-    final parentEmail = (data['email'] ?? '').toString();
-    final parentPhone = (data['phone'] ?? '').toString();
+    final parentEmail = (resolvedData['email'] ?? '').toString();
+    final parentPhone = (resolvedData['phone'] ?? '').toString();
     final addressParts = [
-      (data['addressLine1'] ?? '').toString(),
-      (data['city'] ?? '').toString(),
-      (data['state'] ?? '').toString(),
-      (data['zip'] ?? '').toString(),
+      (resolvedData['addressLine1'] ?? '').toString(),
+      (resolvedData['city'] ?? '').toString(),
+      (resolvedData['state'] ?? '').toString(),
+      (resolvedData['zip'] ?? '').toString(),
     ].where((part) => part.trim().isNotEmpty).toList();
     final address = addressParts.join(', ');
-    final signedName = (contract['signedName'] ?? '').toString().trim();
-    final accepted = contract['accepted'] == true;
     final signedAt = ChildRecordLite._asDateTime(contract['signedAt']);
-    final signaturePoints =
-        (contract['signaturePoints'] as List<dynamic>? ?? const [])
-            .map((item) => item.toString())
-            .toList();
+    final signaturePoints = _decodeSignaturePoints(
+      (contract['signaturePoints'] as List<dynamic>?) ??
+          fallbackContract['signaturePoints'] as List<dynamic>?,
+    );
+    final resolvedSignedName = (contract['signedName'] ?? '')
+        .toString()
+        .trim()
+        .isEmpty
+        ? _signName.text.trim()
+        : (contract['signedName'] ?? '').toString().trim();
+    final resolvedAccepted =
+        contract['accepted'] == true || (_accepted && usedFallback);
 
     if (!mounted) return;
-    await _showPdfDocumentDialog(
-      title: 'Daycare Contract',
-      build: () => FormPdfBuilder.buildContractPdf(
-        parentName: parentName,
-        parentEmail: parentEmail,
-        parentPhone: parentPhone,
-        parentAddress: address,
-        signedName: signedName,
-        signed: accepted,
-        signedAt: signedAt,
-        signaturePoints: signaturePoints,
-      ),
+    if (usedFallback) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Using current screen data for saved signature view.'),
+        ),
+      );
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Daycare Contract',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FBFF),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFD8E2EC)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DocInfoRow(
+                          title: 'Parent Name',
+                          value: parentName.isEmpty ? '-' : parentName,
+                        ),
+                        _DocInfoRow(
+                          title: 'Email',
+                          value: parentEmail.isEmpty ? '-' : parentEmail,
+                        ),
+                        _DocInfoRow(
+                          title: 'Phone',
+                          value: parentPhone.isEmpty ? '-' : parentPhone,
+                        ),
+                        _DocInfoRow(
+                          title: 'Address',
+                          value: address.isEmpty ? '-' : address,
+                        ),
+                        _DocInfoRow(
+                          title: 'Signed Name',
+                          value: resolvedSignedName.isEmpty
+                              ? '-'
+                              : resolvedSignedName,
+                        ),
+                        _DocInfoRow(
+                          title: 'Status',
+                          value: resolvedAccepted ? 'Signed' : 'Pending',
+                        ),
+                        _DocInfoRow(
+                          title: 'Signed At',
+                          value: signedAt == null
+                              ? '-'
+                              : DateFormat('M/d/y h:mm a').format(signedAt),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Saved Signature',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  IgnorePointer(
+                    child: Opacity(
+                      opacity: 0.95,
+                      child: SignaturePad(
+                        points: signaturePoints,
+                        onChanged: (_) {},
+                      ),
+                    ),
+                  ),
+                  if (!signaturePoints.any((point) => point != null)) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'No saved signature found yet.',
+                      style: TextStyle(color: Color(0xFF6B7280)),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2688,251 +2815,499 @@ class _FormsPageState extends State<FormsPage> {
     required Map<String, dynamic> data,
     required ChildRecordLite child,
   }) async {
+    await _openPhotoPermissionDocumentFlow(
+      data: data,
+      child: child,
+      action: _PhotoPermissionAction.sign,
+    );
+  }
+
+  Future<void> _openPhotoPermissionViewer({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+  }) async {
+    await _openPhotoPermissionDocumentFlow(
+      data: data,
+      child: child,
+      action: _PhotoPermissionAction.view,
+    );
+  }
+
+  Future<void> _openPhotoPermissionDocumentFlow({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+    required _PhotoPermissionAction action,
+  }) async {
+    final repo = ParentRepository();
+    Map<String, dynamic> parentData = data;
+    Map<String, dynamic> tenantData = const <String, dynamic>{};
+    Map<String, dynamic> existingPermission = const <String, dynamic>{};
+
+    try {
+      final latestParent = await repo.loadParentDoc(widget.contextData);
+      if (latestParent.isNotEmpty) {
+        parentData = latestParent;
+      }
+    } catch (_) {}
+    try {
+      tenantData = await repo.loadTenantDoc(widget.contextData.tenantId);
+    } catch (_) {}
+    try {
+      existingPermission = await repo.loadPhotoPermissionDocument(
+        contextData: widget.contextData,
+        childId: child.id,
+      );
+    } catch (_) {}
+
     final contract =
-        (data['parentContract'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{};
-    final parentName =
-        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
-            .trim();
-    final parentEmail = (data['email'] ?? '').toString();
-    final parentPhone = (data['phone'] ?? '').toString();
-    final addressParts = [
-      (data['addressLine1'] ?? '').toString(),
-      (data['city'] ?? '').toString(),
-      (data['state'] ?? '').toString(),
-      (data['zip'] ?? '').toString(),
-    ].where((part) => part.trim().isNotEmpty).toList();
-    final address = addressParts.join(', ');
+        (parentData['parentContract'] as Map<String, dynamic>?) ??
+        <String, dynamic>{
+          'accepted': _accepted,
+          'signedName': _signName.text.trim(),
+          'signaturePoints': _encodeSignaturePoints(_signaturePoints),
+          'signatureCaptured': _signaturePoints.any((point) => point != null),
+        };
     final signedName = (contract['signedName'] ?? '').toString().trim();
-    final contractAccepted = contract['accepted'] == true;
-    final signatureCaptured = contract['signatureCaptured'] == true;
-    final pointsLocal = _decodeSignaturePoints(
+    final signatureCaptured =
+        contract['signatureCaptured'] == true ||
+        _signaturePoints.any((point) => point != null);
+    final signaturePoints = _decodeSignaturePoints(
       contract['signaturePoints'] as List<dynamic>?,
     );
+    final contractAccepted = contract['accepted'] == true || _accepted;
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final daycareName = _resolveDaycareName(tenantData);
+    final daycareAddress = _resolveDaycareAddress(tenantData);
+    final daycarePhone = _resolveDaycarePhone(tenantData);
+    final childDobText = _formatDateOnly(child.dateOfBirth);
+
+    if (!mounted) return;
     final hasSavedSignature =
         contractAccepted &&
         signatureCaptured &&
         signedName.isNotEmpty &&
-        pointsLocal.any((point) => point != null);
-
-    if (!mounted) return;
+        signaturePoints.any((point) => point != null);
     if (!hasSavedSignature) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Sign Daycare Contract first. That saved signature will be reused for this document.',
+            'Use Save Signature first. That saved signature will be reused for this document.',
           ),
         ),
       );
       return;
     }
 
+    var language = (existingPermission['documentLanguage'] ?? 'en')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (language != 'es') {
+      language = 'en';
+    }
+    bool? internalApproved;
+    bool? publicApproved;
+    if (existingPermission.containsKey('internalCommunicationApproved')) {
+      internalApproved = existingPermission['internalCommunicationApproved'] == true;
+    }
+    if (existingPermission.containsKey('publicWebsiteApproved')) {
+      publicApproved = existingPermission['publicWebsiteApproved'] == true;
+    }
+    final documentCompleted = _isCompletedPhotoPermission(existingPermission);
+    if (documentCompleted) {
+      final selectedLanguage = await _promptForDocumentLanguage(
+        initialLanguage: language,
+      );
+      if (selectedLanguage == null || !mounted) return;
+      if (!mounted) return;
+      await _openSavedPhotoPermissionDocumentPreview(
+        payload: {
+          ...existingPermission,
+          'documentLanguage': selectedLanguage,
+          'daycareName': daycareName,
+          'daycareAddress': daycareAddress,
+          'daycarePhone': daycarePhone,
+          'childName': child.fullName.isEmpty ? 'Child' : child.fullName,
+          'childDateOfBirthText':
+              (existingPermission['childDateOfBirthText'] ?? childDobText)
+                  .toString(),
+          'parentName': parentName.isEmpty ? signedName : parentName,
+        },
+        child: child,
+        fallbackParentName: parentName.isEmpty ? signedName : parentName,
+      );
+      return;
+    }
+    if (action == _PhotoPermissionAction.view) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fill this document once with Sign Document. After that, View Document will open it directly.',
+          ),
+        ),
+      );
+      return;
+    }
+    String? errorText;
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return Dialog(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Sign Photo & Media Permission',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      child.fullName.isEmpty ? 'Child' : child.fullName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF2B6E6A),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FBFF),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFD8E2EC)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _DocInfoRow(
-                            title: 'Parent Name',
-                            value: parentName.isEmpty ? '-' : parentName,
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760, maxHeight: 820),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          child.fullName.isEmpty
+                              ? 'Photo & Media Permission'
+                              : '${child.fullName} Photo & Media Permission',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
                           ),
-                          _DocInfoRow(
-                            title: 'Email',
-                            value: parentEmail.isEmpty ? '-' : parentEmail,
-                          ),
-                          _DocInfoRow(
-                            title: 'Phone',
-                            value: parentPhone.isEmpty ? '-' : parentPhone,
-                          ),
-                          _DocInfoRow(
-                            title: 'Address',
-                            value: address.isEmpty ? '-' : address,
-                          ),
-                          _DocInfoRow(
-                            title: 'Child',
-                            value: child.fullName.isEmpty
-                                ? 'Child'
-                                : child.fullName,
-                          ),
-                          _DocInfoRow(
-                            title: 'Saved Signature',
-                            value: signedName,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Choose the language and answer the YES/NO questions to fill the printable document.',
+                          style: TextStyle(color: Color(0xFF5B6675)),
+                        ),
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Document Language',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                              value: 'en',
+                              label: Text('English'),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'es',
+                              label: Text('Español'),
+                            ),
+                          ],
+                          selected: {language},
+                          onSelectionChanged: (selection) {
+                            setDialogState(() => language = selection.first);
+                          },
+                        ),
+                        const SizedBox(height: 18),
+                        _buildPermissionQuestion(
+                          title: language == 'es'
+                              ? '1. Comunicación Interna'
+                              : '1. Internal Communication',
+                          description: language == 'es'
+                              ? 'Permitir fotos/videos en actividades diarias y compartirlas con los padres dentro del programa.'
+                              : 'Allow photos/videos during daily activities and share them with parents inside the program.',
+                          value: internalApproved,
+                          onChanged: (value) =>
+                              setDialogState(() => internalApproved = value),
+                          yesLabel: language == 'es' ? 'Sí' : 'Yes',
+                          noLabel: language == 'es' ? 'No' : 'No',
+                        ),
+                        const SizedBox(height: 14),
+                        _buildPermissionQuestion(
+                          title: language == 'es'
+                              ? '2. Redes Sociales y Página Web Pública'
+                              : '2. Social Media & Public Website',
+                          description: language == 'es'
+                              ? 'Permitir uso promocional y comunitario en redes sociales y página web pública.'
+                              : 'Allow promotional and community use on social media and the public website.',
+                          value: publicApproved,
+                          onChanged: (value) =>
+                              setDialogState(() => publicApproved = value),
+                          yesLabel: language == 'es' ? 'Sí' : 'Yes',
+                          noLabel: language == 'es' ? 'No' : 'No',
+                        ),
+                        if (errorText != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            errorText!,
+                            style: const TextStyle(
+                              color: Color(0xFFB42318),
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFDF7E8),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFEADDBB)),
-                      ),
-                      child: const Text(
-                        'The daycare contract signature already on file will be applied to this photo permission document. Press Sign Document to approve it.',
-                        style: TextStyle(
-                          height: 1.45,
-                          color: Color(0xFF4B5563),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Saved Contract Signature',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    IgnorePointer(
-                      child: Opacity(
-                        opacity: 0.95,
-                        child: SignaturePad(
-                          points: pointsLocal,
-                          onChanged: (_) {},
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: _saving
-                              ? null
-                              : () => Navigator.of(dialogContext).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: _saving
-                              ? null
-                              : () async {
-                                  final messenger = ScaffoldMessenger.of(
-                                    context,
-                                  );
-                                  setState(() => _saving = true);
-                                  try {
-                                    await ParentRepository()
-                                        .savePhotoPermissionDocument(
+                        const SizedBox(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => Navigator.of(dialogContext).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () async {
+                                      if (internalApproved == null ||
+                                          publicApproved == null) {
+                                        setDialogState(() {
+                                          errorText =
+                                              'Answer both YES/NO questions before continuing.';
+                                        });
+                                        return;
+                                      }
+                                      setDialogState(() => errorText = null);
+                                      setState(() => _saving = true);
+                                      try {
+                                        await repo.savePhotoPermissionDocument(
                                           contextData: widget.contextData,
                                           uid: widget.uid,
                                           child: child,
-                                          parentData: data,
+                                          parentData: parentData,
                                           consentGranted: true,
+                                          documentLanguage: language,
+                                          internalCommunicationApproved:
+                                              internalApproved!,
+                                          publicWebsiteApproved:
+                                              publicApproved!,
+                                          daycareName: daycareName,
+                                          daycareAddress: daycareAddress,
+                                          daycarePhone: daycarePhone,
+                                          childDateOfBirthText: childDobText,
                                           signedName: signedName,
-                                          signaturePoints:
-                                              _encodeSignaturePoints(
-                                                pointsLocal,
-                                              ),
+                                          signaturePoints: _encodeSignaturePoints(
+                                            signaturePoints,
+                                          ),
                                           signatureCaptured: true,
                                         );
-                                    try {
-                                      final pdfBytes =
-                                          await FormPdfBuilder.buildPhotoPermissionPdf(
-                                            parentName: parentName,
-                                            parentEmail: parentEmail,
-                                            parentPhone: parentPhone,
-                                            parentAddress: address,
-                                            childName: child.fullName.isEmpty
+                                        if (dialogContext.mounted) {
+                                          Navigator.of(dialogContext).pop();
+                                        }
+                                        if (!mounted) return;
+                                        await _openSavedPhotoPermissionDocumentPreview(
+                                          payload: {
+                                            ...existingPermission,
+                                            'documentCompleted': true,
+                                            'documentLanguage': language,
+                                            'daycareName': daycareName,
+                                            'daycareAddress': daycareAddress,
+                                            'daycarePhone': daycarePhone,
+                                            'childName': child.fullName.isEmpty
                                                 ? 'Child'
                                                 : child.fullName,
-                                            signedName: signedName,
-                                            signed: true,
-                                            signedAt: DateTime.now(),
-                                            signaturePoints:
+                                            'childDateOfBirthText': childDobText,
+                                            'parentName': parentName.isEmpty
+                                                ? signedName
+                                                : parentName,
+                                            'internalCommunicationApproved':
+                                                internalApproved,
+                                            'publicWebsiteApproved':
+                                                publicApproved,
+                                            'signedName': signedName,
+                                            'signedAt': DateTime.now(),
+                                            'signaturePoints':
                                                 _encodeSignaturePoints(
-                                                  pointsLocal,
+                                                  signaturePoints,
                                                 ),
-                                          );
-                                      final upload = await ParentRepository()
-                                          .uploadParentFormPdf(
-                                            tenantId:
-                                                widget.contextData.tenantId,
-                                            parentId:
-                                                widget.contextData.parentId,
-                                            documentKey:
-                                                'photo_permission_${child.id}',
-                                            fileName:
-                                                '${child.fullName.isEmpty ? child.id : child.fullName.replaceAll(' ', '_').toLowerCase()}_photo_permission.pdf',
-                                            bytes: pdfBytes,
-                                          );
-                                      await ParentRepository()
-                                          .savePhotoPermissionPdfMetadata(
-                                            contextData: widget.contextData,
-                                            uid: widget.uid,
-                                            childId: child.id,
-                                            pdfUrl: upload.url,
-                                            pdfPath: upload.path,
-                                            pdfName: upload.fileName,
-                                          );
-                                    } on FirebaseException {
-                                      // Keep the signed permission even if PDF upload fails.
-                                    }
-                                    if (!mounted) return;
-                                    if (dialogContext.mounted) {
-                                      Navigator.of(dialogContext).pop();
-                                    }
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Photo permission signed for ${child.fullName.isEmpty ? 'child' : child.fullName}.',
-                                        ),
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Could not sign the document. $e',
-                                        ),
-                                      ),
-                                    );
-                                  } finally {
-                                    if (mounted) {
-                                      setState(() => _saving = false);
-                                    }
-                                  }
-                                },
-                          child: const Text('Sign Document'),
+                                          },
+                                          child: child,
+                                          fallbackParentName:
+                                              parentName.isEmpty
+                                              ? signedName
+                                              : parentName,
+                                        );
+                                      } catch (e) {
+                                        if (dialogContext.mounted) {
+                                          setDialogState(() {
+                                            errorText =
+                                                'Could not prepare the document. $e';
+                                          });
+                                        }
+                                      } finally {
+                                        if (mounted) {
+                                          setState(() => _saving = false);
+                                        }
+                                      }
+                                    },
+                              child: Text(
+                                language == 'es'
+                                    ? 'Generar Documento'
+                                    : 'Generate Document',
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool _isCompletedPhotoPermission(Map<String, dynamic> payload) {
+    if (payload['documentCompleted'] == true) return true;
+    return payload['documentLanguage'] != null &&
+        payload.containsKey('internalCommunicationApproved') &&
+        payload.containsKey('publicWebsiteApproved') &&
+        payload['signedName'] != null &&
+        ((payload['signaturePoints'] as List<dynamic>?)?.isNotEmpty ?? false);
+  }
+
+  Future<String?> _promptForDocumentLanguage({
+    required String initialLanguage,
+  }) async {
+    var selected = initialLanguage == 'es' ? 'es' : 'en';
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Document Language'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Choose the language for this document view.'),
+                  const SizedBox(height: 16),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment<String>(
+                        value: 'en',
+                        label: Text('English'),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'es',
+                        label: Text('Español'),
+                      ),
+                    ],
+                    selected: {selected},
+                    onSelectionChanged: (selection) {
+                      setDialogState(() => selected = selection.first);
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(selected),
+                  child: const Text('Open Document'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openSavedPhotoPermissionDocumentPreview({
+    required Map<String, dynamic> payload,
+    required ChildRecordLite child,
+    required String fallbackParentName,
+  }) async {
+    final language = (payload['documentLanguage'] ?? 'en').toString();
+    final childName = (payload['childName'] ?? '').toString().trim().isEmpty
+        ? (child.fullName.isEmpty ? 'Child' : child.fullName)
+        : (payload['childName'] ?? '').toString();
+    final parentGuardianName =
+        (payload['parentName'] ?? payload['parentGuardianName'] ?? '')
+            .toString()
+            .trim()
+            .isEmpty
+        ? fallbackParentName
+        : (payload['parentName'] ?? payload['parentGuardianName'] ?? '')
+              .toString();
+    final bytes = await FormPdfBuilder.buildPhotoPermissionPdf(
+      languageCode: language,
+      daycareName: (payload['daycareName'] ?? '').toString(),
+      daycareAddress: (payload['daycareAddress'] ?? '').toString(),
+      daycarePhone: (payload['daycarePhone'] ?? '').toString(),
+      childName: childName,
+      childDateOfBirthText: (payload['childDateOfBirthText'] ?? '-')
+          .toString(),
+      parentGuardianName: parentGuardianName,
+      internalCommunicationApproved:
+          payload['internalCommunicationApproved'] == true,
+      publicWebsiteApproved: payload['publicWebsiteApproved'] == true,
+      signedName: (payload['signedName'] ?? '').toString(),
+      signedAt: ChildRecordLite._asDateTime(payload['signedAt']),
+      signaturePoints:
+          (payload['signaturePoints'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
+    );
+    if (!mounted) return;
+    final fileName =
+        '${childName.replaceAll(' ', '_').toLowerCase()}_photo_permission.pdf';
+    if (kIsWeb) {
+      final opened = await openPdfInNewTab(bytes, fileName);
+      if (!mounted) return;
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The browser blocked the document tab. Try allowing pop-ups and open the document again.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                childName.isEmpty
+                    ? 'Photo & Media Permission'
+                    : '$childName Photo & Media Permission',
+              ),
+              actions: [
+                TextButton.icon(
+                  onPressed: () async {
+                    await Printing.layoutPdf(
+                      name: fileName,
+                      onLayout: (_) async => bytes,
+                    );
+                  },
+                  icon: const Icon(Icons.print),
+                  label: const Text('Print'),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            body: Container(
+              color: const Color(0xFFF4F1EB),
+              child: PdfPreview(
+                build: (_) async => bytes,
+                allowPrinting: false,
+                allowSharing: false,
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                canDebug: false,
+                maxPageWidth: 760,
               ),
             ),
           ),
@@ -2941,104 +3316,86 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
-  Future<void> _openPhotoPermissionViewer({
-    required Map<String, dynamic> data,
-    required ChildRecordLite child,
-  }) async {
-    final existingPermission = await ParentRepository()
-        .loadPhotoPermissionDocument(
-          contextData: widget.contextData,
-          childId: child.id,
-        );
-    final parentName =
-        '${(data['firstName'] ?? '').toString()} ${(data['lastName'] ?? '').toString()}'
-            .trim();
-    final parentEmail = (data['email'] ?? '').toString();
-    final parentPhone = (data['phone'] ?? '').toString();
-    final addressParts = [
-      (data['addressLine1'] ?? '').toString(),
-      (data['city'] ?? '').toString(),
-      (data['state'] ?? '').toString(),
-      (data['zip'] ?? '').toString(),
-    ].where((part) => part.trim().isNotEmpty).toList();
-    final address = addressParts.join(', ');
-    final signedName = (existingPermission['signedName'] ?? '')
+  String _resolveDaycareName(Map<String, dynamic> tenantData) {
+    return (tenantData['daycareName'] ??
+            tenantData['businessName'] ??
+            tenantData['name'] ??
+            '')
         .toString()
         .trim();
-    final signedAt = ChildRecordLite._asDateTime(
-      existingPermission['signedAt'],
-    );
-    final consentGranted = existingPermission['consentGranted'] == true;
-    final signaturePoints =
-        (existingPermission['signaturePoints'] as List<dynamic>? ?? const [])
-            .map((item) => item.toString())
-            .toList();
-    if (!mounted) return;
-    await _showPdfDocumentDialog(
-      title:
-          '${child.fullName.isEmpty ? 'Child' : child.fullName} Photo Permission',
-      build: () => FormPdfBuilder.buildPhotoPermissionPdf(
-        parentName: parentName,
-        parentEmail: parentEmail,
-        parentPhone: parentPhone,
-        parentAddress: address,
-        childName: child.fullName.isEmpty ? 'Child' : child.fullName,
-        signedName: signedName,
-        signed: consentGranted,
-        signedAt: signedAt,
-        signaturePoints: signaturePoints,
-      ),
-    );
   }
 
-  Future<void> _showPdfDocumentDialog({
+  String _resolveDaycareAddress(Map<String, dynamic> tenantData) {
+    return [
+      (tenantData['addressHouseNumber'] ?? '').toString(),
+      (tenantData['addressStreet'] ?? '').toString(),
+      (tenantData['addressCity'] ?? '').toString(),
+      (tenantData['addressState'] ?? '').toString(),
+      (tenantData['addressZip'] ?? '').toString(),
+    ].where((part) => part.trim().isNotEmpty).join(', ');
+  }
+
+  String _resolveDaycarePhone(Map<String, dynamic> tenantData) {
+    final area = (tenantData['phoneAreaCode'] ?? '').toString().trim();
+    final number =
+        (tenantData['phoneNumber'] ?? tenantData['phone'] ?? '')
+            .toString()
+            .trim();
+    if (area.isEmpty) return number;
+    if (number.isEmpty) return area;
+    return '($area) $number';
+  }
+
+  String _formatDateOnly(DateTime? value) {
+    if (value == null) return '-';
+    return DateFormat('M/d/y').format(value);
+  }
+
+  Widget _buildPermissionQuestion({
     required String title,
-    required Future<List<int>> Function() build,
-  }) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          child: SizedBox(
-            width: 920,
-            height: 760,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: PdfPreview(
-                    canChangePageFormat: false,
-                    canChangeOrientation: false,
-                    allowPrinting: true,
-                    allowSharing: true,
-                    build: (format) async => Uint8List.fromList(await build()),
-                  ),
-                ),
-              ],
-            ),
+    required String description,
+    required bool? value,
+    required ValueChanged<bool> onChanged,
+    required String yesLabel,
+    required String noLabel,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
-        );
-      },
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: const TextStyle(color: Color(0xFF5B6675), height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            children: [
+              ChoiceChip(
+                label: Text(yesLabel),
+                selected: value == true,
+                onSelected: (_) => onChanged(true),
+              ),
+              ChoiceChip(
+                label: Text(noLabel),
+                selected: value == false,
+                onSelected: (_) => onChanged(false),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -3193,7 +3550,9 @@ class _PhotoPermissionChildCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      child.fullName.isEmpty ? 'Child' : child.fullName,
+                      child.fullName.isEmpty
+                          ? 'Child Photo and Media Permission'
+                          : '${child.fullName} Photo and Media Permission',
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF3D4A59),
@@ -3281,6 +3640,36 @@ String _formatShortDate(DateTime value) {
   return '${value.month}/${value.day}/${value.year}';
 }
 
+String _tenantDisplayName(
+  Map<String, dynamic> tenantData, {
+  String? tenantId,
+  bool uppercase = false,
+}) {
+  final value =
+      (tenantData['daycareName'] ??
+              tenantData['businessName'] ??
+              tenantData['name'] ??
+              _humanizeTenantId(tenantId) ??
+              'DAYCARE')
+          .toString()
+          .trim();
+  return uppercase ? value.toUpperCase() : value;
+}
+
+String? _humanizeTenantId(String? tenantId) {
+  final raw = (tenantId ?? '').trim();
+  if (raw.isEmpty) return null;
+  return raw
+      .split('-')
+      .where((part) => part.trim().isNotEmpty)
+      .map((part) {
+        final lower = part.toLowerCase();
+        if (lower.length == 1) return lower.toUpperCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
+      })
+      .join(' ');
+}
+
 class _FormsDocRow extends StatelessWidget {
   const _FormsDocRow({required this.text, required this.color});
 
@@ -3308,11 +3697,20 @@ class _FormsDocRow extends StatelessWidget {
 }
 
 class BillingPage extends StatelessWidget {
-  const BillingPage({super.key});
+  const BillingPage({super.key, required this.contextData});
+
+  final ParentContext contextData;
 
   @override
   Widget build(BuildContext context) {
-    final header = Container(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: ParentRepository().watchTenantDoc(contextData.tenantId),
+      builder: (context, tenantSnapshot) {
+        final tenantData =
+            tenantSnapshot.data?.data() ?? const <String, dynamic>{};
+        final daycareName = _tenantDisplayName(tenantData, uppercase: true);
+
+        final header = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -3320,7 +3718,7 @@ class BillingPage extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: const Row(
+      child: Row(
         children: [
           SizedBox(
             width: 64,
@@ -3339,8 +3737,8 @@ class BillingPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SUNSHINE KIDS DAYCARE',
-                  style: TextStyle(
+                  daycareName,
+                  style: const TextStyle(
                     fontSize: 14,
                     letterSpacing: 1,
                     fontWeight: FontWeight.w700,
@@ -3368,7 +3766,7 @@ class BillingPage extends StatelessWidget {
         ],
       ),
     );
-    final balanceCard = Container(
+        final balanceCard = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFE7F7EF),
@@ -3421,7 +3819,7 @@ class BillingPage extends StatelessWidget {
         ],
       ),
     );
-    final upcomingCard = Container(
+        final upcomingCard = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFF),
@@ -3505,7 +3903,7 @@ class BillingPage extends StatelessWidget {
         ],
       ),
     );
-    final paymentMethodsCard = Container(
+        final paymentMethodsCard = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFF),
@@ -3543,27 +3941,29 @@ class BillingPage extends StatelessWidget {
         ],
       ),
     );
-    final isWide = MediaQuery.sizeOf(context).width >= 900;
+        final isWide = MediaQuery.sizeOf(context).width >= 900;
 
-    if (!isWide) {
-      return ListView(
-        children: [
-          const _DisplayOnlyBanner(),
-          const SizedBox(height: 12),
-          header,
-          const SizedBox(height: 14),
-          balanceCard,
-          const SizedBox(height: 14),
-          upcomingCard,
-          const SizedBox(height: 14),
-          paymentMethodsCard,
-        ],
-      );
-    }
+        if (!isWide) {
+          return ListView(
+            children: [
+              const _DisplayOnlyBanner(),
+              const SizedBox(height: 12),
+              header,
+              const SizedBox(height: 14),
+              balanceCard,
+              const SizedBox(height: 14),
+              upcomingCard,
+              const SizedBox(height: 14),
+              paymentMethodsCard,
+            ],
+          );
+        }
 
-    return _ResponsiveTwoColumn(
-      mainChildren: [const _DisplayOnlyBanner(), header, upcomingCard],
-      sideChildren: [balanceCard, paymentMethodsCard],
+        return _ResponsiveTwoColumn(
+          mainChildren: [const _DisplayOnlyBanner(), header, upcomingCard],
+          sideChildren: [balanceCard, paymentMethodsCard],
+        );
+      },
     );
   }
 }
@@ -4026,7 +4426,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Sunshine Kids',
+            'CareSync Parent',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 44,
@@ -4252,11 +4652,14 @@ class ParentContext {
   final String parentId;
 }
 
+enum _PhotoPermissionAction { sign, view }
+
 class ChildRecordLite {
   const ChildRecordLite({
     required this.id,
     required this.firstName,
     required this.lastName,
+    required this.dateOfBirth,
     required this.parentId,
     required this.allergyNotes,
     required this.medicalNotes,
@@ -4274,6 +4677,7 @@ class ChildRecordLite {
   final String id;
   final String firstName;
   final String lastName;
+  final DateTime? dateOfBirth;
   final String parentId;
   final String allergyNotes;
   final String medicalNotes;
@@ -4295,6 +4699,7 @@ class ChildRecordLite {
       id: doc.id,
       firstName: (data['firstName'] ?? '').toString(),
       lastName: (data['lastName'] ?? '').toString(),
+      dateOfBirth: _asDateTime(data['dateOfBirth']),
       parentId: (data['parentId'] ?? '').toString(),
       allergyNotes: (data['allergyNotes'] ?? '').toString(),
       medicalNotes: (data['medicalNotes'] ?? '').toString(),
@@ -4421,6 +4826,39 @@ class ParentRepository {
         .snapshots();
   }
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchTenantDoc(
+    String tenantId,
+  ) {
+    return _db.collection('tenants').doc(tenantId).snapshots();
+  }
+
+  Future<Map<String, dynamic>> loadParentDoc(ParentContext contextData) async {
+    try {
+      final doc = await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('parents')
+          .doc(contextData.parentId)
+          .get();
+      final data = doc.data();
+      if (data != null && data.isNotEmpty) {
+        return data;
+      }
+    } catch (_) {}
+    return _loadParentDocViaRest(contextData);
+  }
+
+  Future<Map<String, dynamic>> loadTenantDoc(String tenantId) async {
+    try {
+      final doc = await _db.collection('tenants').doc(tenantId).get();
+      final data = doc.data();
+      if (data != null && data.isNotEmpty) {
+        return data;
+      }
+    } catch (_) {}
+    return _loadTenantDocViaRest(tenantId);
+  }
+
   Stream<List<ChildRecordLite>> watchChildrenForTenant(
     ParentContext contextData,
   ) async* {
@@ -4541,6 +4979,13 @@ class ParentRepository {
     required ChildRecordLite child,
     required Map<String, dynamic> parentData,
     required bool consentGranted,
+    required String documentLanguage,
+    required bool internalCommunicationApproved,
+    required bool publicWebsiteApproved,
+    required String daycareName,
+    required String daycareAddress,
+    required String daycarePhone,
+    required String childDateOfBirthText,
     required String signedName,
     required List<String> signaturePoints,
     required bool signatureCaptured,
@@ -4571,8 +5016,16 @@ class ParentRepository {
         'parentZip': (parentData['zip'] ?? '').toString(),
         'childId': child.id,
         'childName': child.fullName,
+        'childDateOfBirthText': childDateOfBirthText,
         'formType': 'photo_media_permission',
         'consentGranted': consentGranted,
+        'documentLanguage': documentLanguage,
+        'internalCommunicationApproved': internalCommunicationApproved,
+        'publicWebsiteApproved': publicWebsiteApproved,
+        'daycareName': daycareName,
+        'daycareAddress': daycareAddress,
+        'daycarePhone': daycarePhone,
+        'documentCompleted': true,
         'signedName': signedName,
         'signaturePoints': signaturePoints,
         'signatureCaptured': signatureCaptured,
@@ -4582,7 +5035,7 @@ class ParentRepository {
       }, SetOptions(merge: true));
 
       batch.set(childRef, {
-        'photoPermissionSigned': consentGranted && signatureCaptured,
+        'photoPermissionSigned': signatureCaptured,
         'photoPermissionSignedAt': FieldValue.serverTimestamp(),
         'photoPermissionSignedByParentId': contextData.parentId,
         'photoPermissionSignedByName': signedName,
@@ -4600,6 +5053,13 @@ class ParentRepository {
         uid: uid,
         parentData: parentData,
         consentGranted: consentGranted,
+        documentLanguage: documentLanguage,
+        internalCommunicationApproved: internalCommunicationApproved,
+        publicWebsiteApproved: publicWebsiteApproved,
+        daycareName: daycareName,
+        daycareAddress: daycareAddress,
+        daycarePhone: daycarePhone,
+        childDateOfBirthText: childDateOfBirthText,
         signedName: signedName,
         signaturePoints: signaturePoints,
         signatureCaptured: signatureCaptured,
@@ -4678,15 +5138,25 @@ class ParentRepository {
     required ParentContext contextData,
     required String childId,
   }) async {
-    final doc = await _db
-        .collection('tenants')
-        .doc(contextData.tenantId)
-        .collection('children')
-        .doc(childId)
-        .collection('photo_permissions')
-        .doc(contextData.parentId)
-        .get();
-    return doc.data() ?? const <String, dynamic>{};
+    try {
+      final doc = await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('children')
+          .doc(childId)
+          .collection('photo_permissions')
+          .doc(contextData.parentId)
+          .get();
+      final data = doc.data();
+      if (data != null && data.isNotEmpty) {
+        return data;
+      }
+    } catch (_) {}
+    return _loadPhotoPermissionViaRest(
+      tenantId: contextData.tenantId,
+      childId: childId,
+      parentId: contextData.parentId,
+    );
   }
 
   Future<void> createChildRequest({
@@ -4798,6 +5268,7 @@ class ParentRepository {
         id: id,
         firstName: _stringField(fields, 'firstName'),
         lastName: _stringField(fields, 'lastName'),
+        dateOfBirth: _timestampField(fields, 'dateOfBirth'),
         parentId: _stringField(fields, 'parentId'),
         allergyNotes: _stringField(fields, 'allergyNotes'),
         medicalNotes: _stringField(fields, 'medicalNotes'),
@@ -4945,6 +5416,130 @@ class ParentRepository {
     }
   }
 
+  Future<Map<String, dynamic>> _loadParentDocViaRest(
+    ParentContext contextData,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const <String, dynamic>{};
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/${contextData.tenantId}/parents/${contextData.parentId}',
+    );
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) {
+      return const <String, dynamic>{};
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final fields = (payload['fields'] as Map<String, dynamic>?) ?? const {};
+    return _decodeFirestoreMap(fields);
+  }
+
+  Future<Map<String, dynamic>> _loadTenantDocViaRest(String tenantId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const <String, dynamic>{};
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId',
+    );
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) {
+      return const <String, dynamic>{};
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final fields = (payload['fields'] as Map<String, dynamic>?) ?? const {};
+    return _decodeFirestoreMap(fields);
+  }
+
+  Future<Map<String, dynamic>> _loadPhotoPermissionViaRest({
+    required String tenantId,
+    required String childId,
+    required String parentId,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const <String, dynamic>{};
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/$childId/photo_permissions/$parentId',
+    );
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) {
+      return const <String, dynamic>{};
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final fields = (payload['fields'] as Map<String, dynamic>?) ?? const {};
+    return _decodeFirestoreMap(fields);
+  }
+
+  Map<String, dynamic> _decodeFirestoreMap(Map<String, dynamic> fields) {
+    final decoded = <String, dynamic>{};
+    fields.forEach((key, value) {
+      decoded[key] = _decodeFirestoreValue(value);
+    });
+    return decoded;
+  }
+
+  dynamic _decodeFirestoreValue(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    if (raw.containsKey('stringValue')) {
+      return (raw['stringValue'] ?? '').toString();
+    }
+    if (raw.containsKey('booleanValue')) {
+      return raw['booleanValue'] == true;
+    }
+    if (raw.containsKey('integerValue')) {
+      return int.tryParse((raw['integerValue'] ?? '').toString());
+    }
+    if (raw.containsKey('doubleValue')) {
+      return (raw['doubleValue'] as num?)?.toDouble();
+    }
+    if (raw.containsKey('timestampValue')) {
+      final value = (raw['timestampValue'] ?? '').toString();
+      return value.isEmpty ? null : DateTime.tryParse(value)?.toLocal();
+    }
+    if (raw.containsKey('nullValue')) {
+      return null;
+    }
+    if (raw.containsKey('mapValue')) {
+      final mapFields =
+          (raw['mapValue'] as Map<String, dynamic>?)?['fields']
+              as Map<String, dynamic>? ??
+          const <String, dynamic>{};
+      return _decodeFirestoreMap(mapFields);
+    }
+    if (raw.containsKey('arrayValue')) {
+      final values =
+          (raw['arrayValue'] as Map<String, dynamic>?)?['values']
+              as List<dynamic>? ??
+          const <dynamic>[];
+      return values.map(_decodeFirestoreValue).toList();
+    }
+    return null;
+  }
+
   Future<void> _saveParentContractSignatureViaRest({
     required String tenantId,
     required String parentId,
@@ -5013,6 +5608,13 @@ class ParentRepository {
     required String uid,
     required Map<String, dynamic> parentData,
     required bool consentGranted,
+    required String documentLanguage,
+    required bool internalCommunicationApproved,
+    required bool publicWebsiteApproved,
+    required String daycareName,
+    required String daycareAddress,
+    required String daycarePhone,
+    required String childDateOfBirthText,
     required String signedName,
     required List<String> signaturePoints,
     required bool signatureCaptured,
@@ -5042,8 +5644,16 @@ class ParentRepository {
       '&updateMask.fieldPaths=parentZip'
       '&updateMask.fieldPaths=childId'
       '&updateMask.fieldPaths=childName'
+      '&updateMask.fieldPaths=childDateOfBirthText'
       '&updateMask.fieldPaths=formType'
       '&updateMask.fieldPaths=consentGranted'
+      '&updateMask.fieldPaths=documentLanguage'
+      '&updateMask.fieldPaths=internalCommunicationApproved'
+      '&updateMask.fieldPaths=publicWebsiteApproved'
+      '&updateMask.fieldPaths=daycareName'
+      '&updateMask.fieldPaths=daycareAddress'
+      '&updateMask.fieldPaths=daycarePhone'
+      '&updateMask.fieldPaths=documentCompleted'
       '&updateMask.fieldPaths=signedName'
       '&updateMask.fieldPaths=signaturePoints'
       '&updateMask.fieldPaths=signatureCaptured'
@@ -5066,8 +5676,18 @@ class ParentRepository {
         'parentZip': {'stringValue': (parentData['zip'] ?? '').toString()},
         'childId': {'stringValue': child.id},
         'childName': {'stringValue': child.fullName},
+        'childDateOfBirthText': {'stringValue': childDateOfBirthText},
         'formType': {'stringValue': 'photo_media_permission'},
         'consentGranted': {'booleanValue': consentGranted},
+        'documentLanguage': {'stringValue': documentLanguage},
+        'internalCommunicationApproved': {
+          'booleanValue': internalCommunicationApproved,
+        },
+        'publicWebsiteApproved': {'booleanValue': publicWebsiteApproved},
+        'daycareName': {'stringValue': daycareName},
+        'daycareAddress': {'stringValue': daycareAddress},
+        'daycarePhone': {'stringValue': daycarePhone},
+        'documentCompleted': {'booleanValue': true},
         'signedName': {'stringValue': signedName},
         'signaturePoints': {
           'arrayValue': {
@@ -5109,9 +5729,7 @@ class ParentRepository {
     );
     final childBody = jsonEncode({
       'fields': {
-        'photoPermissionSigned': {
-          'booleanValue': consentGranted && signatureCaptured,
-        },
+        'photoPermissionSigned': {'booleanValue': signatureCaptured},
         'photoPermissionSignedAt': {'timestampValue': now},
         'photoPermissionSignedByParentId': {'stringValue': parentId},
         'photoPermissionSignedByName': {'stringValue': signedName},
