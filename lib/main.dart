@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
@@ -15,7 +16,7 @@ import 'form_document_pdf.dart';
 import 'pdf_web_helper_stub.dart'
     if (dart.library.html) 'pdf_web_helper_web.dart';
 
-const _appVersion = '1.2.43+56';
+const _appVersion = '1.2.47+60';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -590,7 +591,9 @@ class _HomePageState extends State<HomePage> {
       builder: (context, parentSnap) {
         final parent = parentSnap.data?.data() ?? const <String, dynamic>{};
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: ParentRepository().watchTenantDoc(widget.contextData.tenantId),
+          stream: ParentRepository().watchTenantDoc(
+            widget.contextData.tenantId,
+          ),
           builder: (context, tenantSnap) {
             final tenantData =
                 tenantSnap.data?.data() ?? const <String, dynamic>{};
@@ -613,11 +616,7 @@ class _HomePageState extends State<HomePage> {
                 final childName = selected?.fullName.isNotEmpty == true
                     ? selected!.fullName
                     : 'Emma Polanco';
-                final hero = _homeHero(
-                  childName,
-                  linkedChildren,
-                  selected?.id,
-                );
+                final hero = _homeHero(childName, linkedChildren, selected?.id);
                 final etaCard = _homeEtaCard(
                   context,
                   selected,
@@ -1326,7 +1325,8 @@ class _ChildPageState extends State<ChildPage> {
                 .where((c) => c.parentId == widget.contextData.parentId)
                 .toList();
 
-            final displayChildren = linked.isEmpty
+            final header = _childHeader(daycareName);
+            final childCards = linked.isEmpty
                 ? const [
                     _DisplayChild(
                       name: 'Emma Polanco',
@@ -1340,25 +1340,18 @@ class _ChildPageState extends State<ChildPage> {
                       emoji: '👦',
                       tone: 1,
                     ),
-                  ]
+                  ].map((item) => _fallbackChildCard(item)).toList()
                 : linked
                       .asMap()
                       .entries
                       .map(
-                        (entry) => _DisplayChild(
-                          name: entry.value.fullName.isEmpty
-                              ? 'Child ${entry.key + 1}'
-                              : entry.value.fullName,
-                          age: entry.value.id.hashCode.abs() % 7 + 2,
-                          emoji: entry.key.isEven ? '👧' : '👦',
+                        (entry) => _linkedChildCard(
+                          child: entry.value,
                           tone: entry.key % 2,
+                          emoji: entry.key.isEven ? '👧' : '👦',
                         ),
                       )
                       .toList();
-            final header = _childHeader(daycareName);
-            final childCards = displayChildren
-                .map((item) => _childCard(item))
-                .toList();
             final isWide = MediaQuery.sizeOf(context).width >= 900;
 
             if (!isWide) {
@@ -1366,10 +1359,10 @@ class _ChildPageState extends State<ChildPage> {
                 children: [
                   header,
                   const SizedBox(height: 14),
-                  ...displayChildren.map(
+                  ...childCards.map(
                     (item) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _childCard(item),
+                      child: item,
                     ),
                   ),
                 ],
@@ -1479,7 +1472,7 @@ class _ChildPageState extends State<ChildPage> {
     );
   }
 
-  Widget _childCard(_DisplayChild child) {
+  Widget _fallbackChildCard(_DisplayChild child) {
     final cardTint = child.tone == 0
         ? const Color(0xFFEAF3FD)
         : const Color(0xFFEAF9F1);
@@ -1574,6 +1567,211 @@ class _ChildPageState extends State<ChildPage> {
         ],
       ),
     );
+  }
+
+  Widget _linkedChildCard({
+    required ChildRecordLite child,
+    required int tone,
+    required String emoji,
+  }) {
+    final cardTint = tone == 0
+        ? const Color(0xFFEAF3FD)
+        : const Color(0xFFEAF9F1);
+    final avatarTint = tone == 0
+        ? const Color(0xFFD1E8FF)
+        : const Color(0xFFD1F3DE);
+    final age = _ageFromDateOfBirth(child.dateOfBirth);
+    final dobLabel = _formatDateOnly(child.dateOfBirth);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardTint,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFD8E4EE)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: avatarTint,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Center(
+                  child: Text(emoji, style: const TextStyle(fontSize: 30)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      child.fullName.isEmpty ? 'Child' : child.fullName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF263445),
+                      ),
+                    ),
+                    Text(
+                      age == null ? 'Age -' : 'Age $age',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                    Text(
+                      'DOB: $dobLabel',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton.tonal(
+                onPressed: () => _openEditDobDialog(child),
+                child: const Text('Edit DOB'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Expanded(child: _ChildPill(label: 'Authorized Pickup')),
+              SizedBox(width: 8),
+              Expanded(child: _ChildPill(label: 'Medical Info')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Row(
+            children: [
+              Expanded(child: _ChildPill(label: 'Attendance')),
+              SizedBox(width: 8),
+              Expanded(child: _ChildPill(label: 'Forms')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openEditDobDialog(ChildRecordLite child) async {
+    var selected = child.dateOfBirth;
+    var saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Date of Birth'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      child.fullName.isEmpty ? 'Child' : child.fullName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final now = DateTime.now();
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate:
+                                    selected ??
+                                    DateTime(now.year - 3, now.month, now.day),
+                                firstDate: DateTime(now.year - 18),
+                                lastDate: now,
+                              );
+                              if (picked != null) {
+                                setDialogState(() => selected = picked);
+                              }
+                            },
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      label: Text(
+                        selected == null
+                            ? 'Choose Date of Birth'
+                            : _formatDateOnly(selected),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving || selected == null
+                      ? null
+                      : () async {
+                          setDialogState(() => saving = true);
+                          try {
+                            await ParentRepository().updateChildDateOfBirth(
+                              contextData: widget.contextData,
+                              uid: widget.uid,
+                              childId: child.id,
+                              dateOfBirth: selected!,
+                            );
+                            if (!context.mounted) return;
+                            Navigator.of(context).pop();
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Date of birth updated.'),
+                              ),
+                            );
+                          } catch (_) {
+                            if (!context.mounted) return;
+                            setDialogState(() => saving = false);
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not update date of birth.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  int? _ageFromDateOfBirth(DateTime? dateOfBirth) {
+    if (dateOfBirth == null) return null;
+    final now = DateTime.now();
+    var age = now.year - dateOfBirth.year;
+    final birthdayPassed =
+        now.month > dateOfBirth.month ||
+        (now.month == dateOfBirth.month && now.day >= dateOfBirth.day);
+    if (!birthdayPassed) age -= 1;
+    return age < 0 ? 0 : age;
+  }
+
+  String _formatDateOnly(DateTime? value) {
+    if (value == null) return '-';
+    return DateFormat('MMM dd, yyyy').format(value);
   }
 
   Future<void> _openChildRequestDialog() async {
@@ -1742,79 +1940,130 @@ class ProfilePage extends StatelessWidget {
           stream: ParentRepository().watchParentDoc(contextData),
           builder: (context, snapshot) {
             final data = snapshot.data?.data() ?? const <String, dynamic>{};
-            final firstName = (data['firstName'] ?? '').toString();
-            final lastName = (data['lastName'] ?? '').toString();
-            final fullName = '$firstName $lastName'.trim().isEmpty
-                ? 'Juan Polanco'
-                : '$firstName $lastName'.trim();
-            final phone = (data['phone'] ?? '(203) 555-0184').toString();
-            final email = (data['email'] ?? 'juan@email.com').toString();
-            final header = _profileHeader(daycareName);
-            final summary = _profileSummary(fullName, phone, email);
-            final pickups = _profileGroup(
-              title: 'AUTHORIZED PICKUP',
-              trailing: const _TinyGreenPill(label: 'Add'),
-              child: const Column(
-            children: [
-              _SoftListRow(
-                text: 'Juan Polanco · Father',
-                color: Color(0xFFDDEAF6),
-              ),
-              SizedBox(height: 10),
-              _SoftListRow(
-                text: 'Maria Polanco · Mother',
-                color: Color(0xFFDFF2EA),
-              ),
-              SizedBox(height: 10),
-              _SoftListRow(
-                text: 'Rosa Polanco · Grandmother',
-                color: Color(0xFFF4F0DE),
-              ),
-            ],
-          ),
-        );
-            final emergency = _profileGroup(
-              title: 'EMERGENCY CONTACTS',
-              child: const Column(
-            children: [
-              _EmergencyCard(
-                title: 'Emergency Contact 1',
-                value: 'Maria Polanco · (203) 555-0140',
-                color: Color(0xFFF4E7EB),
-              ),
-              SizedBox(height: 10),
-              _EmergencyCard(
-                title: 'Emergency Contact 2',
-                value: 'Rosa Polanco · (203) 555-0162',
-                color: Color(0xFFEAE6F9),
-              ),
-            ],
-          ),
-        );
-            final isWide = MediaQuery.sizeOf(context).width >= 900;
-
-            if (!isWide) {
-              return ListView(
-                children: [
-                  header,
-                  const SizedBox(height: 14),
-                  summary,
-                  const SizedBox(height: 14),
-                  pickups,
-                  const SizedBox(height: 14),
-                  emergency,
-                ],
+            final needsFallback = !_hasParentData(data);
+            if (needsFallback) {
+              final userEmail = FirebaseAuth.instance.currentUser?.email ?? '';
+              return FutureBuilder<Map<String, dynamic>>(
+                future: ParentRepository().findParentDocByIdentity(
+                  tenantId: contextData.tenantId,
+                  authUid: uid,
+                  email: userEmail,
+                ),
+                builder: (context, fallbackSnapshot) {
+                  final fallback =
+                      fallbackSnapshot.data ?? const <String, dynamic>{};
+                  return _buildProfileContent(
+                    context,
+                    daycareName,
+                    fallback.isEmpty ? data : fallback,
+                  );
+                },
               );
             }
 
-            return _ResponsiveTwoColumn(
-              mainChildren: [header, summary],
-              sideChildren: [pickups, emergency],
-            );
+            return _buildProfileContent(context, daycareName, data);
           },
         );
       },
     );
+  }
+
+  Widget _buildProfileContent(
+    BuildContext context,
+    String daycareName,
+    Map<String, dynamic> data,
+  ) {
+    final firstName = (data['firstName'] ?? '').toString();
+    final lastName = (data['lastName'] ?? '').toString();
+    final fullName = '$firstName $lastName'.trim().isEmpty
+        ? 'Parent'
+        : '$firstName $lastName'.trim();
+    final phone = _formatPhone((data['phone'] ?? '').toString());
+    final email = (data['email'] ?? '').toString();
+    final pickupsData = _contactList(data['authorizedPickupContacts']);
+    final emergencyData = _contactList(data['emergencyContacts']);
+    final header = _profileHeader(daycareName);
+    final summary = _profileSummary(fullName, phone, email);
+    final pickups = _profileGroup(
+      title: 'AUTHORIZED PICKUP',
+      trailing: const _TinyGreenPill(label: 'Add'),
+      child: Column(
+        children: [
+          if (pickupsData.isEmpty)
+            const _SoftListRow(
+              text: 'No authorized pickup contacts yet.',
+              color: Color(0xFFDDEAF6),
+            )
+          else
+            ...pickupsData.asMap().entries.map(
+              (entry) => Padding(
+                padding: EdgeInsets.only(
+                  bottom: entry.key == pickupsData.length - 1 ? 0 : 10,
+                ),
+                child: _SoftListRow(
+                  text: _pickupText(entry.value),
+                  color: _pickupColor(entry.key),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    final emergency = _profileGroup(
+      title: 'EMERGENCY CONTACTS',
+      child: Column(
+        children: [
+          if (emergencyData.isEmpty)
+            const _EmergencyCard(
+              title: 'Emergency Contact',
+              value: 'No emergency contacts yet.',
+              color: Color(0xFFF4E7EB),
+            )
+          else
+            ...emergencyData.asMap().entries.map(
+              (entry) => Padding(
+                padding: EdgeInsets.only(
+                  bottom: entry.key == emergencyData.length - 1 ? 0 : 10,
+                ),
+                child: _EmergencyCard(
+                  title: 'Emergency Contact ${entry.key + 1}',
+                  value: _contactText(entry.value),
+                  color: entry.key.isEven
+                      ? const Color(0xFFF4E7EB)
+                      : const Color(0xFFEAE6F9),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+    if (!isWide) {
+      return ListView(
+        children: [
+          header,
+          const SizedBox(height: 14),
+          summary,
+          const SizedBox(height: 14),
+          pickups,
+          const SizedBox(height: 14),
+          emergency,
+        ],
+      );
+    }
+
+    return _ResponsiveTwoColumn(
+      mainChildren: [header, summary],
+      sideChildren: [pickups, emergency],
+    );
+  }
+
+  bool _hasParentData(Map<String, dynamic> data) {
+    final firstName = (data['firstName'] ?? '').toString().trim();
+    final lastName = (data['lastName'] ?? '').toString().trim();
+    final email = (data['email'] ?? '').toString().trim();
+    return firstName.isNotEmpty || lastName.isNotEmpty || email.isNotEmpty;
   }
 
   Widget _profileHeader(String daycareName) {
@@ -1913,7 +2162,7 @@ class ProfilePage extends StatelessWidget {
                       ),
                     ),
                     const Text(
-                      'Father · Primary\naccount',
+                      'Parent · Primary\naccount',
                       style: TextStyle(fontSize: 15, color: Color(0xFF67758A)),
                     ),
                   ],
@@ -1956,6 +2205,7 @@ class ProfilePage extends StatelessWidget {
   }
 
   Widget _profileInfoCell({required String label, required String value}) {
+    final safe = value.trim().isEmpty ? '-' : value.trim();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -1970,11 +2220,59 @@ class ProfilePage extends StatelessWidget {
               text: '$label ',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            TextSpan(text: value),
+            TextSpan(text: safe),
           ],
         ),
       ),
     );
+  }
+
+  List<Map<String, String>> _contactList(dynamic raw) {
+    final list = raw as List<dynamic>? ?? const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => {
+            'name': (item['name'] ?? '').toString(),
+            'phone': (item['phone'] ?? '').toString(),
+            'relation': (item['relation'] ?? '').toString(),
+          },
+        )
+        .toList();
+  }
+
+  String _pickupText(Map<String, String> item) {
+    final name = (item['name'] ?? '').trim();
+    final relation = (item['relation'] ?? '').trim();
+    if (name.isEmpty && relation.isEmpty) return '-';
+    if (relation.isEmpty) return name;
+    return '$name · $relation';
+  }
+
+  String _contactText(Map<String, String> item) {
+    final name = (item['name'] ?? '').trim();
+    final phone = _formatPhone((item['phone'] ?? '').trim());
+    if (name.isEmpty && phone.isEmpty) return '-';
+    if (phone.isEmpty) return name;
+    if (name.isEmpty) return phone;
+    return '$name · $phone';
+  }
+
+  Color _pickupColor(int index) {
+    switch (index % 3) {
+      case 1:
+        return const Color(0xFFDFF2EA);
+      case 2:
+        return const Color(0xFFF4F0DE);
+      default:
+        return const Color(0xFFDDEAF6);
+    }
+  }
+
+  String _formatPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length != 10) return value.trim().isEmpty ? '-' : value;
+    return '(${digits.substring(0, 3)}) ${digits.substring(3, 6)}-${digits.substring(6)}';
   }
 
   Widget _profileGroup({
@@ -2142,81 +2440,86 @@ class _FormsPageState extends State<FormsPage> {
             final contract =
                 (data['parentContract'] as Map<String, dynamic>?) ??
                 const <String, dynamic>{};
-        final contractAccepted = contract['accepted'] == true;
-        final contractSignedName = (contract['signedName'] ?? '')
-            .toString()
-            .trim();
-        final contractSignaturePoints = _decodeSignaturePoints(
-          contract['signaturePoints'] as List<dynamic>?,
-        );
+            final contractAccepted = contract['accepted'] == true;
+            final contractSignedName = (contract['signedName'] ?? '')
+                .toString()
+                .trim();
+            final contractSignaturePoints = _decodeSignaturePoints(
+              contract['signaturePoints'] as List<dynamic>?,
+            );
 
-        if (!_initialized ||
-            (contractAccepted &&
-                contractSignedName.isNotEmpty &&
-                contractSignaturePoints.any((point) => point != null) &&
-                (_accepted != contractAccepted ||
-                    _signName.text.trim() != contractSignedName ||
-                    _encodeSignaturePoints(_signaturePoints).join('|') !=
-                        _encodeSignaturePoints(contractSignaturePoints).join(
-                          '|',
-                        )))) {
-          _accepted = contractAccepted;
-          _signName.text = contractSignedName;
-          _signaturePoints = contractSignaturePoints;
-          _initialized = true;
-        }
+            if (!_initialized ||
+                (contractAccepted &&
+                    contractSignedName.isNotEmpty &&
+                    contractSignaturePoints.any((point) => point != null) &&
+                    (_accepted != contractAccepted ||
+                        _signName.text.trim() != contractSignedName ||
+                        _encodeSignaturePoints(_signaturePoints).join('|') !=
+                            _encodeSignaturePoints(
+                              contractSignaturePoints,
+                            ).join('|')))) {
+              _accepted = contractAccepted;
+              _signName.text = contractSignedName;
+              _signaturePoints = contractSignaturePoints;
+              _initialized = true;
+            }
             return StreamBuilder<List<ChildRecordLite>>(
               stream: ParentRepository().watchChildrenForTenant(
                 widget.contextData,
               ),
               builder: (context, childSnapshot) {
-                final children = childSnapshot.data ?? const <ChildRecordLite>[];
+                final children =
+                    childSnapshot.data ?? const <ChildRecordLite>[];
                 final linkedChildren = children
                     .where((c) => c.parentId == widget.contextData.parentId)
                     .toList();
 
                 final header = _formsHeader(daycareName);
                 final addSignature = Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF3FB37B),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: _saving
-                        ? null
-                        : () => _openSignatureDialog(data),
-                    child: const Text(
-                      'Save Signature',
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF3FB37B),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: _saving
+                            ? null
+                            : () => _openSignatureDialog(data),
+                        child: const Text(
+                          'Save Signature',
+                          style: TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: _saving
-                        ? null
-                        : () => _openSavedContractSignatureViewer(data),
-                    child: const Text(
-                      'View Saved Signature',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        onPressed: _saving
+                            ? null
+                            : () => _openSavedContractSignatureViewer(data),
+                        child: const Text(
+                          'View Saved Signature',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            );
+                  ],
+                );
                 final photoPermission = _photoPermissionCard(
+                  data,
+                  linkedChildren,
+                );
+                final enrollmentForms = _childEnrollmentCard(
                   data,
                   linkedChildren,
                 );
@@ -2233,6 +2536,8 @@ class _FormsPageState extends State<FormsPage> {
                       const SizedBox(height: 14),
                       photoPermission,
                       const SizedBox(height: 14),
+                      enrollmentForms,
+                      const SizedBox(height: 14),
                       pending,
                       const SizedBox(height: 14),
                       docs,
@@ -2241,7 +2546,12 @@ class _FormsPageState extends State<FormsPage> {
                 }
 
                 return _ResponsiveTwoColumn(
-                  mainChildren: [header, photoPermission, docs],
+                  mainChildren: [
+                    header,
+                    photoPermission,
+                    enrollmentForms,
+                    docs,
+                  ],
                   sideChildren: [addSignature, pending],
                 );
               },
@@ -2402,7 +2712,7 @@ class _FormsPageState extends State<FormsPage> {
           ),
           SizedBox(height: 10),
           _FormsDocRow(
-            text: 'Emergency Contact Form',
+            text: 'Child Enrollment & Emergency Contact Form',
             color: Color(0xFFE9E7F8),
           ),
           SizedBox(height: 10),
@@ -2604,10 +2914,8 @@ class _FormsPageState extends State<FormsPage> {
       (contract['signaturePoints'] as List<dynamic>?) ??
           fallbackContract['signaturePoints'] as List<dynamic>?,
     );
-    final resolvedSignedName = (contract['signedName'] ?? '')
-        .toString()
-        .trim()
-        .isEmpty
+    final resolvedSignedName =
+        (contract['signedName'] ?? '').toString().trim().isEmpty
         ? _signName.text.trim()
         : (contract['signedName'] ?? '').toString().trim();
     final resolvedAccepted =
@@ -2811,6 +3119,1523 @@ class _FormsPageState extends State<FormsPage> {
     );
   }
 
+  Widget _childEnrollmentCard(
+    Map<String, dynamic> parentData,
+    List<ChildRecordLite> linkedChildren,
+  ) {
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final parentEmail = (parentData['email'] ?? '').toString();
+    final parentPhone = (parentData['phone'] ?? '').toString();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E2EC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'CHILD ENROLLMENT & EMERGENCY CONTACT FORM',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: Color(0xFF3C4A5B),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            parentName.isEmpty ? 'Parent profile' : parentName,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          if (parentEmail.isNotEmpty || parentPhone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              [
+                parentEmail,
+                parentPhone,
+              ].where((value) => value.trim().isNotEmpty).join(' • '),
+              style: const TextStyle(color: Color(0xFF607080)),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (linkedChildren.isEmpty)
+            const Text('No linked children found for enrollment forms yet.')
+          else
+            ...linkedChildren.map(
+              (child) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _EnrollmentChildCard(
+                  child: child,
+                  onSign: _saving
+                      ? null
+                      : () => _signEnrollmentFormWithSavedSignature(
+                          data: parentData,
+                          child: child,
+                        ),
+                  onView: () =>
+                      _openEnrollmentViewer(data: parentData, child: child),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _signEnrollmentFormWithSavedSignature({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+  }) async {
+    await _openEnrollmentDocumentFlow(
+      data: data,
+      child: child,
+      action: _PhotoPermissionAction.sign,
+    );
+  }
+
+  Future<void> _openEnrollmentViewer({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+  }) async {
+    await _openEnrollmentDocumentFlow(
+      data: data,
+      child: child,
+      action: _PhotoPermissionAction.view,
+    );
+  }
+
+  Future<void> _openEnrollmentDocumentFlow({
+    required Map<String, dynamic> data,
+    required ChildRecordLite child,
+    required _PhotoPermissionAction action,
+  }) async {
+    final repo = ParentRepository();
+    Map<String, dynamic> parentData = data;
+    Map<String, dynamic> tenantData = const <String, dynamic>{};
+    Map<String, dynamic> existingForm = const <String, dynamic>{};
+
+    try {
+      final latestParent = await repo.loadParentDoc(widget.contextData);
+      if (latestParent.isNotEmpty) {
+        parentData = latestParent;
+      }
+    } catch (_) {}
+    try {
+      tenantData = await repo.loadTenantDoc(widget.contextData.tenantId);
+    } catch (_) {}
+    try {
+      existingForm = await repo.loadChildEnrollmentDocument(
+        contextData: widget.contextData,
+        childId: child.id,
+      );
+    } catch (_) {}
+
+    final contract =
+        (parentData['parentContract'] as Map<String, dynamic>?) ??
+        <String, dynamic>{
+          'accepted': _accepted,
+          'signedName': _signName.text.trim(),
+          'signaturePoints': _encodeSignaturePoints(_signaturePoints),
+          'signatureCaptured': _signaturePoints.any((point) => point != null),
+        };
+    final signedName = (contract['signedName'] ?? '').toString().trim();
+    final signatureCaptured =
+        contract['signatureCaptured'] == true ||
+        _signaturePoints.any((point) => point != null);
+    final signaturePoints = _decodeSignaturePoints(
+      contract['signaturePoints'] as List<dynamic>?,
+    );
+    final contractAccepted = contract['accepted'] == true || _accepted;
+    if (!mounted) return;
+    final hasSavedSignature =
+        contractAccepted &&
+        signatureCaptured &&
+        signedName.isNotEmpty &&
+        signaturePoints.any((point) => point != null);
+    if (!hasSavedSignature) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Use Save Signature first. That saved signature will be reused for this document.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final daycareName = _resolveDaycareName(tenantData);
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final parentPhone = _formatStoredPhone(
+      (parentData['phone'] ?? '').toString(),
+    );
+    final emergencyContacts = _formsContactList(
+      parentData['emergencyContacts'],
+    );
+    final pickupContacts = _formsContactList(
+      parentData['authorizedPickupContacts'],
+    );
+    final mergedContacts = [
+      ...emergencyContacts,
+      ...pickupContacts.where(
+        (item) => !emergencyContacts.any(
+          (existing) =>
+              existing['name'] == item['name'] &&
+              existing['phone'] == item['phone'],
+        ),
+      ),
+    ];
+    final contact1 = mergedContacts.isNotEmpty
+        ? mergedContacts[0]
+        : <String, String>{};
+    final contact2 = mergedContacts.length > 1
+        ? mergedContacts[1]
+        : <String, String>{};
+
+    final childName = child.fullName.isEmpty ? 'Child' : child.fullName;
+    final childDateOfBirthText = _formatDateOnly(child.dateOfBirth);
+    final childAddressParts = _splitStreetAddress(
+      (existingForm['childStreetAddress'] ??
+                  existingForm['childHomeAddress'] ??
+                  '')
+              .toString()
+              .trim()
+              .isEmpty
+          ? (parentData['addressLine1'] ?? '').toString()
+          : (existingForm['childStreetAddress'] ??
+                    existingForm['childHomeAddress'] ??
+                    '')
+                .toString(),
+    );
+    final parent1AddressParts = _splitStreetAddress(
+      (existingForm['parent1Address'] ??
+                  existingForm['parent1HomeAddress'] ??
+                  '')
+              .toString()
+              .trim()
+              .isEmpty
+          ? (parentData['addressLine1'] ?? '').toString()
+          : (existingForm['parent1Address'] ??
+                    existingForm['parent1HomeAddress'] ??
+                    '')
+                .toString(),
+    );
+    final parent2AddressParts = _splitStreetAddress(
+      (existingForm['parent2Address'] ??
+              existingForm['parent2HomeAddress'] ??
+              '')
+          .toString(),
+    );
+    var childGender = (existingForm['childGender'] ?? '').toString().trim();
+    if (!const {'Male', 'Female', 'X'}.contains(childGender)) {
+      childGender = 'Male';
+    }
+    final applicationDateController = TextEditingController(
+      text:
+          (existingForm['dateOfApplicationText'] ??
+                  _formatDateOnly(DateTime.now()))
+              .toString(),
+    );
+    final startDateController = TextEditingController(
+      text:
+          (existingForm['dateOfEnrollmentText'] ??
+                  existingForm['childStartDateText'] ??
+                  '')
+              .toString(),
+    );
+    final lastDayController = TextEditingController(
+      text: (existingForm['lastDayOfEnrollmentText'] ?? '').toString(),
+    );
+    final childHouseNumberController = TextEditingController(
+      text:
+          (existingForm['childHouseNumber'] ??
+                  childAddressParts['houseNumber'] ??
+                  '')
+              .toString(),
+    );
+    final childStreetNameController = TextEditingController(
+      text:
+          (existingForm['childStreetName'] ??
+                  childAddressParts['streetName'] ??
+                  '')
+              .toString(),
+    );
+    final childStreetTypeController = TextEditingController(
+      text:
+          (existingForm['childStreetType'] ??
+                  childAddressParts['streetType'] ??
+                  '')
+              .toString(),
+    );
+    final childCityController = TextEditingController(
+      text: (existingForm['childCity'] ?? parentData['city'] ?? '').toString(),
+    );
+    final childStateController = TextEditingController(
+      text: (existingForm['childState'] ?? parentData['state'] ?? '')
+          .toString(),
+    );
+    final childZipController = TextEditingController(
+      text: (existingForm['childZipCode'] ?? parentData['zip'] ?? '')
+          .toString(),
+    );
+    final primaryLanguageController = TextEditingController(
+      text:
+          (existingForm['primaryLanguage'] ??
+                  (tenantData['languagesList'] as List<dynamic>? ?? const [])
+                      .map((item) => item.toString())
+                      .join(', '))
+              .toString(),
+    );
+    final parent1HomePhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent1HomePhone'] ?? '').toString(),
+      ),
+    );
+    final parent1CellPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent1CellPhone'] ?? parentPhone).toString(),
+      ),
+    );
+    final parent1EmergencyPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent1EmergencyPhone'] ?? contact1['phone'] ?? '')
+            .toString(),
+      ),
+    );
+    final parent1EmailController = TextEditingController(
+      text: (existingForm['parent1Email'] ?? parentData['email'] ?? '')
+          .toString(),
+    );
+    final parent1WorkPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent1EmployerWorkPhone'] ??
+                existingForm['parent1WorkPhone'] ??
+                '')
+            .toString(),
+      ),
+    );
+    final parent1HouseNumberController = TextEditingController(
+      text:
+          (existingForm['parent1HouseNumber'] ??
+                  parent1AddressParts['houseNumber'] ??
+                  '')
+              .toString(),
+    );
+    final parent1StreetNameController = TextEditingController(
+      text:
+          (existingForm['parent1StreetName'] ??
+                  parent1AddressParts['streetName'] ??
+                  '')
+              .toString(),
+    );
+    final parent1StreetTypeController = TextEditingController(
+      text:
+          (existingForm['parent1StreetType'] ??
+                  parent1AddressParts['streetType'] ??
+                  '')
+              .toString(),
+    );
+    final parent1CityController = TextEditingController(
+      text: (existingForm['parent1City'] ?? parentData['city'] ?? '')
+          .toString(),
+    );
+    final parent1StateController = TextEditingController(
+      text: (existingForm['parent1State'] ?? parentData['state'] ?? '')
+          .toString(),
+    );
+    final parent1ZipController = TextEditingController(
+      text: (existingForm['parent1ZipCode'] ?? parentData['zip'] ?? '')
+          .toString(),
+    );
+    final parent1EmploymentController = TextEditingController(
+      text:
+          (existingForm['parent1Employer'] ??
+                  existingForm['parent1Employment'] ??
+                  '')
+              .toString(),
+    );
+    final parent2NameController = TextEditingController(
+      text: (existingForm['parent2Name'] ?? '').toString(),
+    );
+    final parent2HomePhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent2HomePhone'] ?? '').toString(),
+      ),
+    );
+    final parent2CellPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent2CellPhone'] ?? '').toString(),
+      ),
+    );
+    final parent2EmergencyPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent2EmergencyPhone'] ?? '').toString(),
+      ),
+    );
+    final parent2EmailController = TextEditingController(
+      text: (existingForm['parent2Email'] ?? '').toString(),
+    );
+    final parent2WorkPhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['parent2EmployerWorkPhone'] ??
+                existingForm['parent2WorkPhone'] ??
+                '')
+            .toString(),
+      ),
+    );
+    final parent2HouseNumberController = TextEditingController(
+      text:
+          (existingForm['parent2HouseNumber'] ??
+                  parent2AddressParts['houseNumber'] ??
+                  '')
+              .toString(),
+    );
+    final parent2StreetNameController = TextEditingController(
+      text:
+          (existingForm['parent2StreetName'] ??
+                  parent2AddressParts['streetName'] ??
+                  '')
+              .toString(),
+    );
+    final parent2StreetTypeController = TextEditingController(
+      text:
+          (existingForm['parent2StreetType'] ??
+                  parent2AddressParts['streetType'] ??
+                  '')
+              .toString(),
+    );
+    final parent2CityController = TextEditingController(
+      text: (existingForm['parent2City'] ?? '').toString(),
+    );
+    final parent2StateController = TextEditingController(
+      text: (existingForm['parent2State'] ?? '').toString(),
+    );
+    final parent2ZipController = TextEditingController(
+      text: (existingForm['parent2ZipCode'] ?? '').toString(),
+    );
+    final parent2EmploymentController = TextEditingController(
+      text:
+          (existingForm['parent2Employer'] ??
+                  existingForm['parent2Employment'] ??
+                  '')
+              .toString(),
+    );
+    final contact1NameController = TextEditingController(
+      text: (existingForm['contact1Name'] ?? contact1['name'] ?? '').toString(),
+    );
+    final contact1RelationshipController = TextEditingController(
+      text: (existingForm['contact1Relationship'] ?? contact1['relation'] ?? '')
+          .toString(),
+    );
+    final contact1PhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['contact1Phone'] ?? contact1['phone'] ?? '').toString(),
+      ),
+    );
+    final contact2NameController = TextEditingController(
+      text: (existingForm['contact2Name'] ?? contact2['name'] ?? '').toString(),
+    );
+    final contact2RelationshipController = TextEditingController(
+      text: (existingForm['contact2Relationship'] ?? contact2['relation'] ?? '')
+          .toString(),
+    );
+    final contact2PhoneController = TextEditingController(
+      text: _formatDashedPhone(
+        (existingForm['contact2Phone'] ?? contact2['phone'] ?? '').toString(),
+      ),
+    );
+    final restrictedPickupController = TextEditingController(
+      text: (existingForm['restrictedPickupNotes'] ?? child.pickupNotes)
+          .toString(),
+    );
+    final pediatricianNameController = TextEditingController(
+      text: (existingForm['pediatricianName'] ?? '').toString(),
+    );
+    final pediatricianPhoneController = TextEditingController(
+      text: (existingForm['pediatricianPhone'] ?? '').toString(),
+    );
+    final preferredHospitalController = TextEditingController(
+      text: (existingForm['preferredHospital'] ?? '').toString(),
+    );
+    final allergyNotesController = TextEditingController(
+      text: (existingForm['allergyNotes'] ?? child.allergyNotes).toString(),
+    );
+    final medicationNotesController = TextEditingController(
+      text: (existingForm['medicationNotes'] ?? child.medicalNotes).toString(),
+    );
+
+    final documentCompleted = _isCompletedEnrollmentForm(existingForm);
+    if (documentCompleted) {
+      await _openSavedEnrollmentDocumentPreview(
+        payload: {...existingForm, 'documentLanguage': 'en'},
+        child: child,
+        fallbackParentName: parentName.isEmpty ? signedName : parentName,
+      );
+      return;
+    }
+    if (action == _PhotoPermissionAction.view) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fill this document once with Sign Document. After that, View Document will open it directly.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    String? errorText;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 760,
+                  maxHeight: 860,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$childName Enrollment Form',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Review and complete the enrollment information before generating the document.',
+                          style: TextStyle(color: Color(0xFF5B6675)),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Gender',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                              value: 'Male',
+                              label: Text('Male'),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'Female',
+                              label: Text('Female'),
+                            ),
+                            ButtonSegment<String>(value: 'X', label: Text('X')),
+                          ],
+                          selected: {childGender},
+                          onSelectionChanged: (selection) {
+                            setDialogState(() => childGender = selection.first);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _EnrollmentTextField(
+                          controller: applicationDateController,
+                          label: 'Date of Application',
+                          readOnly: true,
+                          onTap: () => _pickEnrollmentDate(
+                            dialogContext,
+                            applicationDateController,
+                          ),
+                        ),
+                        _EnrollmentTextField(
+                          controller: startDateController,
+                          label: 'Date of Enrollment',
+                          readOnly: true,
+                          onTap: () => _pickEnrollmentDate(
+                            dialogContext,
+                            startDateController,
+                          ),
+                        ),
+                        _EnrollmentTextField(
+                          controller: lastDayController,
+                          label: 'Last Day of Enrollment',
+                          readOnly: true,
+                          onTap: () => _pickEnrollmentDate(
+                            dialogContext,
+                            lastDayController,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Child Address',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: childHouseNumberController,
+                                label: 'House #',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: _EnrollmentTextField(
+                                controller: childStreetNameController,
+                                label: 'Street Name',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: childStreetTypeController,
+                                label: 'Type',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: childCityController,
+                                label: 'City',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: childStateController,
+                                label: 'State',
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(2),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z]'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: childZipController,
+                                label: 'ZIP',
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(5),
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: primaryLanguageController,
+                          label: 'Primary Language Spoken at Home',
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Parent / Guardian 1',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        _EnrollmentTextField(
+                          controller: parent1HomePhoneController,
+                          label: 'Home Phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent1CellPhoneController,
+                          label: 'Cell Phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent1EmergencyPhoneController,
+                          label: 'Emergency Contact #',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent1EmailController,
+                          label: 'Email',
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent1HouseNumberController,
+                                label: 'House #',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: _EnrollmentTextField(
+                                controller: parent1StreetNameController,
+                                label: 'Street Name',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent1StreetTypeController,
+                                label: 'Type',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent1CityController,
+                                label: 'City',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent1StateController,
+                                label: 'State',
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(2),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z]'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent1ZipController,
+                                label: 'ZIP',
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(5),
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent1EmploymentController,
+                          label: 'Employer',
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent1WorkPhoneController,
+                          label: 'Work #',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Parent / Guardian 2',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        _EnrollmentTextField(
+                          controller: parent2NameController,
+                          label: 'Parent/Guardian 2 Name',
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2HomePhoneController,
+                          label: 'Home Phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2CellPhoneController,
+                          label: 'Cell Phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2EmergencyPhoneController,
+                          label: 'Emergency Contact #',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2EmailController,
+                          label: 'Email',
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent2HouseNumberController,
+                                label: 'House #',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: _EnrollmentTextField(
+                                controller: parent2StreetNameController,
+                                label: 'Street Name',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent2StreetTypeController,
+                                label: 'Type',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent2CityController,
+                                label: 'City',
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent2StateController,
+                                label: 'State',
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(2),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z]'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EnrollmentTextField(
+                                controller: parent2ZipController,
+                                label: 'ZIP',
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(5),
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2EmploymentController,
+                          label: 'Employer',
+                        ),
+                        _EnrollmentTextField(
+                          controller: parent2WorkPhoneController,
+                          label: 'Work #',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(12),
+                          ],
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact1NameController,
+                          label: 'Emergency Contact 1 Name',
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact1RelationshipController,
+                          label: 'Emergency Contact 1 Relationship',
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact1PhoneController,
+                          label: 'Emergency Contact 1 Phone',
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact2NameController,
+                          label: 'Emergency Contact 2 Name',
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact2RelationshipController,
+                          label: 'Emergency Contact 2 Relationship',
+                        ),
+                        _EnrollmentTextField(
+                          controller: contact2PhoneController,
+                          label: 'Emergency Contact 2 Phone',
+                        ),
+                        _EnrollmentTextField(
+                          controller: restrictedPickupController,
+                          label: 'Not Allowed Pickup Notes',
+                          maxLines: 3,
+                        ),
+                        _EnrollmentTextField(
+                          controller: pediatricianNameController,
+                          label: 'Pediatrician Name',
+                        ),
+                        _EnrollmentTextField(
+                          controller: pediatricianPhoneController,
+                          label: 'Pediatrician Phone',
+                        ),
+                        _EnrollmentTextField(
+                          controller: preferredHospitalController,
+                          label: 'Preferred Hospital',
+                        ),
+                        _EnrollmentTextField(
+                          controller: allergyNotesController,
+                          label: 'Allergies',
+                          maxLines: 3,
+                        ),
+                        _EnrollmentTextField(
+                          controller: medicationNotesController,
+                          label: 'Daily medications or chronic conditions',
+                          maxLines: 3,
+                        ),
+                        if (errorText != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            errorText!,
+                            style: const TextStyle(
+                              color: Color(0xFFB42318),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => Navigator.of(dialogContext).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () async {
+                                      if (contact1NameController.text
+                                              .trim()
+                                              .isEmpty ||
+                                          contact2NameController.text
+                                              .trim()
+                                              .isEmpty) {
+                                        setDialogState(() {
+                                          errorText =
+                                              'Add at least two emergency contacts before continuing.';
+                                        });
+                                        return;
+                                      }
+                                      setDialogState(() => errorText = null);
+                                      setState(() => _saving = true);
+                                      try {
+                                        final childStreetAddress =
+                                            _joinStreetAddress(
+                                              houseNumber:
+                                                  childHouseNumberController
+                                                      .text,
+                                              streetName:
+                                                  childStreetNameController
+                                                      .text,
+                                              streetType:
+                                                  childStreetTypeController
+                                                      .text,
+                                            );
+                                        final parent1StreetAddress =
+                                            _joinStreetAddress(
+                                              houseNumber:
+                                                  parent1HouseNumberController
+                                                      .text,
+                                              streetName:
+                                                  parent1StreetNameController
+                                                      .text,
+                                              streetType:
+                                                  parent1StreetTypeController
+                                                      .text,
+                                            );
+                                        final parent2StreetAddress =
+                                            _joinStreetAddress(
+                                              houseNumber:
+                                                  parent2HouseNumberController
+                                                      .text,
+                                              streetName:
+                                                  parent2StreetNameController
+                                                      .text,
+                                              streetType:
+                                                  parent2StreetTypeController
+                                                      .text,
+                                            );
+                                        final payload = {
+                                          'dateOfApplicationText':
+                                              applicationDateController.text
+                                                  .trim(),
+                                          'dateOfEnrollmentText':
+                                              startDateController.text.trim(),
+                                          'lastDayOfEnrollmentText':
+                                              lastDayController.text.trim(),
+                                          'childGender': childGender,
+                                          'childHouseNumber':
+                                              childHouseNumberController.text
+                                                  .trim(),
+                                          'childStreetName':
+                                              childStreetNameController.text
+                                                  .trim(),
+                                          'childStreetType':
+                                              childStreetTypeController.text
+                                                  .trim(),
+                                          'childStreetAddress':
+                                              childStreetAddress,
+                                          'childHomeAddress':
+                                              childStreetAddress,
+                                          'childCity': childCityController.text
+                                              .trim(),
+                                          'childState': _normalizeState(
+                                            childStateController.text,
+                                          ),
+                                          'childZipCode': _normalizeZip(
+                                            childZipController.text,
+                                          ),
+                                          'primaryLanguage':
+                                              primaryLanguageController.text
+                                                  .trim(),
+                                          'parent1Name': parentName,
+                                          'parent1Address':
+                                              parent1StreetAddress,
+                                          'parent1HouseNumber':
+                                              parent1HouseNumberController.text
+                                                  .trim(),
+                                          'parent1StreetName':
+                                              parent1StreetNameController.text
+                                                  .trim(),
+                                          'parent1StreetType':
+                                              parent1StreetTypeController.text
+                                                  .trim(),
+                                          'parent1City': parent1CityController
+                                              .text
+                                              .trim(),
+                                          'parent1State': _normalizeState(
+                                            parent1StateController.text,
+                                          ),
+                                          'parent1ZipCode': _normalizeZip(
+                                            parent1ZipController.text,
+                                          ),
+                                          'parent1HomePhone':
+                                              _formatDashedPhone(
+                                                parent1HomePhoneController.text,
+                                              ),
+                                          'parent1CellPhone':
+                                              _formatDashedPhone(
+                                                parent1CellPhoneController.text,
+                                              ),
+                                          'parent1EmergencyPhone':
+                                              _formatDashedPhone(
+                                                parent1EmergencyPhoneController
+                                                    .text,
+                                              ),
+                                          'parent1Email': parent1EmailController
+                                              .text
+                                              .trim(),
+                                          'parent1Employer':
+                                              parent1EmploymentController.text
+                                                  .trim(),
+                                          'parent1EmployerWorkPhone':
+                                              _formatDashedPhone(
+                                                parent1WorkPhoneController.text,
+                                              ),
+                                          'parent1WorkPhone':
+                                              parent1WorkPhoneController.text
+                                                  .trim(),
+                                          'parent1EmployerAddress':
+                                              parent1StreetAddress,
+                                          'parent1EmployerCity':
+                                              parent1CityController.text.trim(),
+                                          'parent1EmployerZipCode':
+                                              _normalizeZip(
+                                                parent1ZipController.text,
+                                              ),
+                                          'parent2Name': parent2NameController
+                                              .text
+                                              .trim(),
+                                          'parent2Address':
+                                              parent2StreetAddress,
+                                          'parent2HouseNumber':
+                                              parent2HouseNumberController.text
+                                                  .trim(),
+                                          'parent2StreetName':
+                                              parent2StreetNameController.text
+                                                  .trim(),
+                                          'parent2StreetType':
+                                              parent2StreetTypeController.text
+                                                  .trim(),
+                                          'parent2City': parent2CityController
+                                              .text
+                                              .trim(),
+                                          'parent2State': _normalizeState(
+                                            parent2StateController.text,
+                                          ),
+                                          'parent2ZipCode': _normalizeZip(
+                                            parent2ZipController.text,
+                                          ),
+                                          'parent2HomePhone':
+                                              _formatDashedPhone(
+                                                parent2HomePhoneController.text,
+                                              ),
+                                          'parent2CellPhone':
+                                              _formatDashedPhone(
+                                                parent2CellPhoneController.text,
+                                              ),
+                                          'parent2EmergencyPhone':
+                                              _formatDashedPhone(
+                                                parent2EmergencyPhoneController
+                                                    .text,
+                                              ),
+                                          'parent2Email': parent2EmailController
+                                              .text
+                                              .trim(),
+                                          'parent2Employer':
+                                              parent2EmploymentController.text
+                                                  .trim(),
+                                          'parent2EmployerWorkPhone':
+                                              _formatDashedPhone(
+                                                parent2WorkPhoneController.text,
+                                              ),
+                                          'parent2WorkPhone':
+                                              parent2WorkPhoneController.text
+                                                  .trim(),
+                                          'parent2EmployerAddress':
+                                              parent2StreetAddress,
+                                          'parent2EmployerCity':
+                                              parent2CityController.text.trim(),
+                                          'parent2EmployerZipCode':
+                                              _normalizeZip(
+                                                parent2ZipController.text,
+                                              ),
+                                          'contact1Name': contact1NameController
+                                              .text
+                                              .trim(),
+                                          'contact1Relationship':
+                                              contact1RelationshipController
+                                                  .text
+                                                  .trim(),
+                                          'contact1Phone': _formatDashedPhone(
+                                            contact1PhoneController.text,
+                                          ),
+                                          'contact2Name': contact2NameController
+                                              .text
+                                              .trim(),
+                                          'contact2Relationship':
+                                              contact2RelationshipController
+                                                  .text
+                                                  .trim(),
+                                          'contact2Phone': _formatDashedPhone(
+                                            contact2PhoneController.text,
+                                          ),
+                                          'restrictedPickupNotes':
+                                              restrictedPickupController.text
+                                                  .trim(),
+                                          'pediatricianName':
+                                              pediatricianNameController.text
+                                                  .trim(),
+                                          'pediatricianPhone':
+                                              _formatDashedPhone(
+                                                pediatricianPhoneController
+                                                    .text,
+                                              ),
+                                          'preferredHospital':
+                                              preferredHospitalController.text
+                                                  .trim(),
+                                          'allergyNotes': allergyNotesController
+                                              .text
+                                              .trim(),
+                                          'medicationNotes':
+                                              medicationNotesController.text
+                                                  .trim(),
+                                        };
+                                        await repo.saveChildEnrollmentDocument(
+                                          contextData: widget.contextData,
+                                          uid: widget.uid,
+                                          child: child,
+                                          parentData: parentData,
+                                          daycareName: daycareName,
+                                          documentLanguage: 'en',
+                                          childDateOfBirthText:
+                                              childDateOfBirthText,
+                                          signedName: signedName,
+                                          signaturePoints:
+                                              _encodeSignaturePoints(
+                                                signaturePoints,
+                                              ),
+                                          signatureCaptured: true,
+                                          formData: payload,
+                                        );
+                                        if (dialogContext.mounted) {
+                                          Navigator.of(dialogContext).pop();
+                                        }
+                                        if (!mounted) return;
+                                        await _openSavedEnrollmentDocumentPreview(
+                                          payload: {
+                                            'documentLanguage': 'en',
+                                            'daycareName': daycareName,
+                                            'childName': childName,
+                                            'childDateOfBirthText':
+                                                childDateOfBirthText,
+                                            'signedName': signedName,
+                                            'signedAt': DateTime.now(),
+                                            'signaturePoints':
+                                                _encodeSignaturePoints(
+                                                  signaturePoints,
+                                                ),
+                                            ...payload,
+                                          },
+                                          child: child,
+                                          fallbackParentName: parentName,
+                                        );
+                                      } catch (e) {
+                                        if (dialogContext.mounted) {
+                                          setDialogState(() {
+                                            errorText =
+                                                'Could not prepare the document. $e';
+                                          });
+                                        }
+                                      } finally {
+                                        if (mounted) {
+                                          setState(() => _saving = false);
+                                        }
+                                      }
+                                    },
+                              child: Text('Generate Document'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool _isCompletedEnrollmentForm(Map<String, dynamic> payload) {
+    if (payload['documentCompleted'] == true) return true;
+    return payload['documentLanguage'] != null &&
+        payload['childName'] != null &&
+        payload['signedName'] != null &&
+        ((payload['signaturePoints'] as List<dynamic>?)?.isNotEmpty ?? false);
+  }
+
+  Future<void> _openSavedEnrollmentDocumentPreview({
+    required Map<String, dynamic> payload,
+    required ChildRecordLite child,
+    required String fallbackParentName,
+  }) async {
+    final childName = (payload['childName'] ?? '').toString().trim().isEmpty
+        ? (child.fullName.isEmpty ? 'Child' : child.fullName)
+        : (payload['childName'] ?? '').toString();
+    final bytes = await FormPdfBuilder.buildEnrollmentFormPdf(
+      languageCode: 'en',
+      daycareName: (payload['daycareName'] ?? '').toString(),
+      dateOfApplicationText: (payload['dateOfApplicationText'] ?? '')
+          .toString(),
+      dateOfEnrollmentText:
+          (payload['dateOfEnrollmentText'] ??
+                  payload['childStartDateText'] ??
+                  '')
+              .toString(),
+      lastDayOfEnrollmentText: (payload['lastDayOfEnrollmentText'] ?? '')
+          .toString(),
+      childName: childName,
+      childDateOfBirthText: (payload['childDateOfBirthText'] ?? '-').toString(),
+      childGender: (payload['childGender'] ?? '').toString(),
+      childStreetAddress:
+          (payload['childStreetAddress'] ?? payload['childHomeAddress'] ?? '')
+              .toString(),
+      childCity: (payload['childCity'] ?? '').toString(),
+      childState: (payload['childState'] ?? '').toString(),
+      childZipCode: (payload['childZipCode'] ?? '').toString(),
+      primaryLanguage: (payload['primaryLanguage'] ?? '').toString(),
+      parent1Name:
+          ((payload['parent1Name'] ?? '').toString().trim().isEmpty
+                  ? fallbackParentName
+                  : (payload['parent1Name'] ?? ''))
+              .toString(),
+      parent1Address:
+          (payload['parent1Address'] ?? payload['parent1HomeAddress'] ?? '')
+              .toString(),
+      parent1City: (payload['parent1City'] ?? '').toString(),
+      parent1ZipCode: (payload['parent1ZipCode'] ?? '').toString(),
+      parent1HomePhone: _formatDashedPhone(
+        (payload['parent1HomePhone'] ?? '').toString(),
+      ),
+      parent1CellPhone: _formatDashedPhone(
+        (payload['parent1CellPhone'] ?? '').toString(),
+      ),
+      parent1EmergencyPhone: _formatDashedPhone(
+        (payload['parent1EmergencyPhone'] ?? '').toString(),
+      ),
+      parent1Email: (payload['parent1Email'] ?? '').toString(),
+      parent1Employer:
+          (payload['parent1Employer'] ?? payload['parent1Employment'] ?? '')
+              .toString(),
+      parent1EmployerWorkPhone: _formatDashedPhone(
+        (payload['parent1EmployerWorkPhone'] ??
+                payload['parent1WorkPhone'] ??
+                '')
+            .toString(),
+      ),
+      parent1EmployerAddress:
+          (payload['parent1EmployerAddress'] ??
+                  payload['parent1Address'] ??
+                  payload['parent1HomeAddress'] ??
+                  '')
+              .toString(),
+      parent1EmployerCity:
+          (payload['parent1EmployerCity'] ?? payload['parent1City'] ?? '')
+              .toString(),
+      parent1EmployerZipCode:
+          (payload['parent1EmployerZipCode'] ?? payload['parent1ZipCode'] ?? '')
+              .toString(),
+      parent2Name: (payload['parent2Name'] ?? '').toString(),
+      parent2Address:
+          (payload['parent2Address'] ?? payload['parent2HomeAddress'] ?? '')
+              .toString(),
+      parent2City: (payload['parent2City'] ?? '').toString(),
+      parent2ZipCode: (payload['parent2ZipCode'] ?? '').toString(),
+      parent2HomePhone: _formatDashedPhone(
+        (payload['parent2HomePhone'] ?? '').toString(),
+      ),
+      parent2CellPhone: _formatDashedPhone(
+        (payload['parent2CellPhone'] ?? '').toString(),
+      ),
+      parent2EmergencyPhone: _formatDashedPhone(
+        (payload['parent2EmergencyPhone'] ?? '').toString(),
+      ),
+      parent2Email: (payload['parent2Email'] ?? '').toString(),
+      parent2Employer:
+          (payload['parent2Employer'] ?? payload['parent2Employment'] ?? '')
+              .toString(),
+      parent2EmployerWorkPhone: _formatDashedPhone(
+        (payload['parent2EmployerWorkPhone'] ??
+                payload['parent2WorkPhone'] ??
+                '')
+            .toString(),
+      ),
+      parent2EmployerAddress:
+          (payload['parent2EmployerAddress'] ??
+                  payload['parent2Address'] ??
+                  payload['parent2HomeAddress'] ??
+                  '')
+              .toString(),
+      parent2EmployerCity:
+          (payload['parent2EmployerCity'] ?? payload['parent2City'] ?? '')
+              .toString(),
+      parent2EmployerZipCode:
+          (payload['parent2EmployerZipCode'] ?? payload['parent2ZipCode'] ?? '')
+              .toString(),
+      contact1Name: (payload['contact1Name'] ?? '').toString(),
+      contact1Relationship: (payload['contact1Relationship'] ?? '').toString(),
+      contact1Phone: _formatDashedPhone(
+        (payload['contact1Phone'] ?? '').toString(),
+      ),
+      contact2Name: (payload['contact2Name'] ?? '').toString(),
+      contact2Relationship: (payload['contact2Relationship'] ?? '').toString(),
+      contact2Phone: _formatDashedPhone(
+        (payload['contact2Phone'] ?? '').toString(),
+      ),
+      restrictedPickupNotes: (payload['restrictedPickupNotes'] ?? '')
+          .toString(),
+      pediatricianName: (payload['pediatricianName'] ?? '').toString(),
+      pediatricianPhone: _formatDashedPhone(
+        (payload['pediatricianPhone'] ?? '').toString(),
+      ),
+      preferredHospital: (payload['preferredHospital'] ?? '').toString(),
+      allergyNotes: (payload['allergyNotes'] ?? '').toString(),
+      medicationNotes: (payload['medicationNotes'] ?? '').toString(),
+      signedName: (payload['signedName'] ?? '').toString(),
+      signedAt: ChildRecordLite._asDateTime(payload['signedAt']),
+      signaturePoints:
+          (payload['signaturePoints'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList(),
+    );
+    if (!mounted) return;
+    final fileName =
+        '${childName.replaceAll(' ', '_').toLowerCase()}_enrollment_form.pdf';
+    if (kIsWeb) {
+      final opened = await openPdfInNewTab(bytes, fileName);
+      if (!mounted) return;
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The browser blocked the document tab. Try allowing pop-ups and open the document again.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              childName.isEmpty
+                  ? 'Child Enrollment Form'
+                  : '$childName Enrollment Form',
+            ),
+            actions: [
+              TextButton.icon(
+                onPressed: () async {
+                  await Printing.layoutPdf(
+                    name: fileName,
+                    onLayout: (_) async => bytes,
+                  );
+                },
+                icon: const Icon(Icons.print),
+                label: const Text('Print'),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          body: Container(
+            color: const Color(0xFFF4F1EB),
+            child: PdfPreview(
+              build: (_) async => bytes,
+              allowPrinting: false,
+              allowSharing: false,
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              canDebug: false,
+              maxPageWidth: 760,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Map<String, String>> _formsContactList(dynamic raw) {
+    final list = raw as List<dynamic>? ?? const [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => {
+            'name': (item['name'] ?? '').toString(),
+            'phone': (item['phone'] ?? '').toString(),
+            'relation': (item['relation'] ?? '').toString(),
+          },
+        )
+        .toList();
+  }
+
+  String _formatStoredPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length != 10) return value.trim();
+    return '(${digits.substring(0, 3)}) ${digits.substring(3, 6)}-${digits.substring(6)}';
+  }
+
+  String _formatDashedPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length != 10) return value.trim();
+    return '${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}';
+  }
+
+  String _normalizeZip(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return '';
+    return digits.length <= 5 ? digits : digits.substring(0, 5);
+  }
+
+  String _normalizeState(String value) => value.trim().toUpperCase();
+
+  Map<String, String> _splitStreetAddress(String value) {
+    final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      return const {'houseNumber': '', 'streetName': '', 'streetType': ''};
+    }
+    final parts = normalized.split(' ');
+    final houseNumber = parts.isNotEmpty ? parts.first : '';
+    final streetType = parts.length > 1 ? parts.last : '';
+    final streetName = parts.length > 2
+        ? parts.sublist(1, parts.length - 1).join(' ')
+        : (parts.length == 2 ? parts[1] : '');
+    return {
+      'houseNumber': houseNumber,
+      'streetName': streetName,
+      'streetType': parts.length > 2 ? streetType : '',
+    };
+  }
+
+  String _joinStreetAddress({
+    required String houseNumber,
+    required String streetName,
+    required String streetType,
+  }) {
+    return [
+      houseNumber.trim(),
+      streetName.trim(),
+      streetType.trim(),
+    ].where((part) => part.isNotEmpty).join(' ');
+  }
+
+  Future<void> _pickEnrollmentDate(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final initialDate =
+        DateTime.tryParse(controller.text) ??
+        DateFormat('M/d/y').parseLoose(
+          controller.text.isEmpty
+              ? DateFormat('M/d/y').format(DateTime.now())
+              : controller.text,
+        );
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (selected != null) {
+      controller.text = DateFormat('M/d/y').format(selected);
+    }
+  }
+
   Future<void> _signPhotoPermissionWithSavedSignature({
     required Map<String, dynamic> data,
     required ChildRecordLite child,
@@ -2910,7 +4735,8 @@ class _FormsPageState extends State<FormsPage> {
     bool? internalApproved;
     bool? publicApproved;
     if (existingPermission.containsKey('internalCommunicationApproved')) {
-      internalApproved = existingPermission['internalCommunicationApproved'] == true;
+      internalApproved =
+          existingPermission['internalCommunicationApproved'] == true;
     }
     if (existingPermission.containsKey('publicWebsiteApproved')) {
       publicApproved = existingPermission['publicWebsiteApproved'] == true;
@@ -2959,7 +4785,10 @@ class _FormsPageState extends State<FormsPage> {
           builder: (dialogContext, setDialogState) {
             return Dialog(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760, maxHeight: 820),
+                constraints: const BoxConstraints(
+                  maxWidth: 760,
+                  maxHeight: 820,
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: SingleChildScrollView(
@@ -3082,9 +4911,10 @@ class _FormsPageState extends State<FormsPage> {
                                           daycarePhone: daycarePhone,
                                           childDateOfBirthText: childDobText,
                                           signedName: signedName,
-                                          signaturePoints: _encodeSignaturePoints(
-                                            signaturePoints,
-                                          ),
+                                          signaturePoints:
+                                              _encodeSignaturePoints(
+                                                signaturePoints,
+                                              ),
                                           signatureCaptured: true,
                                         );
                                         if (dialogContext.mounted) {
@@ -3102,7 +4932,8 @@ class _FormsPageState extends State<FormsPage> {
                                             'childName': child.fullName.isEmpty
                                                 ? 'Child'
                                                 : child.fullName,
-                                            'childDateOfBirthText': childDobText,
+                                            'childDateOfBirthText':
+                                                childDobText,
                                             'parentName': parentName.isEmpty
                                                 ? signedName
                                                 : parentName,
@@ -3118,8 +4949,7 @@ class _FormsPageState extends State<FormsPage> {
                                                 ),
                                           },
                                           child: child,
-                                          fallbackParentName:
-                                              parentName.isEmpty
+                                          fallbackParentName: parentName.isEmpty
                                               ? signedName
                                               : parentName,
                                         );
@@ -3240,8 +5070,7 @@ class _FormsPageState extends State<FormsPage> {
       daycareAddress: (payload['daycareAddress'] ?? '').toString(),
       daycarePhone: (payload['daycarePhone'] ?? '').toString(),
       childName: childName,
-      childDateOfBirthText: (payload['childDateOfBirthText'] ?? '-')
-          .toString(),
+      childDateOfBirthText: (payload['childDateOfBirthText'] ?? '-').toString(),
       parentGuardianName: parentGuardianName,
       internalCommunicationApproved:
           payload['internalCommunicationApproved'] == true,
@@ -3337,10 +5166,9 @@ class _FormsPageState extends State<FormsPage> {
 
   String _resolveDaycarePhone(Map<String, dynamic> tenantData) {
     final area = (tenantData['phoneAreaCode'] ?? '').toString().trim();
-    final number =
-        (tenantData['phoneNumber'] ?? tenantData['phone'] ?? '')
-            .toString()
-            .trim();
+    final number = (tenantData['phoneNumber'] ?? tenantData['phone'] ?? '')
+        .toString()
+        .trim();
     if (area.isEmpty) return number;
     if (number.isEmpty) return area;
     return '($area) $number';
@@ -3369,10 +5197,7 @@ class _FormsPageState extends State<FormsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           Text(
             description,
@@ -3601,6 +5426,105 @@ class _PhotoPermissionChildCard extends StatelessWidget {
   }
 }
 
+class _EnrollmentChildCard extends StatelessWidget {
+  const _EnrollmentChildCard({
+    required this.child,
+    required this.onSign,
+    required this.onView,
+  });
+
+  final ChildRecordLite child;
+  final VoidCallback? onSign;
+  final VoidCallback? onView;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9E7F8),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            child.fullName.isEmpty
+                ? 'Child Enrollment & Emergency Contact Form'
+                : '${child.fullName} Enrollment & Emergency Contact Form',
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3D4A59),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'One signed enrollment and emergency form per child.',
+            style: TextStyle(color: Color(0xFF63748A)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: onSign,
+                  child: const Text('Sign Document'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onView,
+                  child: const Text('View Document'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EnrollmentTextField extends StatelessWidget {
+  const _EnrollmentTextField({
+    required this.controller,
+    required this.label,
+    this.maxLines = 1,
+    this.keyboardType,
+    this.readOnly = false,
+    this.onTap,
+    this.inputFormatters,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final int maxLines;
+  final TextInputType? keyboardType;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final List<TextInputFormatter>? inputFormatters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        readOnly: readOnly,
+        onTap: onTap,
+        inputFormatters: inputFormatters,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+}
+
 class _DocInfoRow extends StatelessWidget {
   const _DocInfoRow({required this.title, required this.value});
 
@@ -3711,236 +5635,241 @@ class BillingPage extends StatelessWidget {
         final daycareName = _tenantDisplayName(tenantData, uppercase: true);
 
         final header = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8E2B9)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 64,
-            height: 64,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.all(Radius.circular(16)),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD7F3E6), Color(0xFFD9EBFA), Color(0xFFF8E2B9)],
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: Center(
+                    child: Text('💳', style: TextStyle(fontSize: 26)),
+                  ),
+                ),
               ),
-              child: Center(child: Text('💳', style: TextStyle(fontSize: 26))),
-            ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      daycareName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF607080),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Billing',
+                      style: TextStyle(
+                        fontSize: 40,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Tuition, invoices, receipts, and\npayment methods',
+                      style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  daycareName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    letterSpacing: 1,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF607080),
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Billing',
-                  style: TextStyle(
-                    fontSize: 40,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'Tuition, invoices, receipts, and\npayment methods',
-                  style: TextStyle(fontSize: 16, color: Color(0xFF607080)),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+        );
         final balanceCard = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE7F7EF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFCBE8D7)),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CURRENT BALANCE',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: Color(0xFF2F7D64),
-                  ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  r'$325.00',
-                  style: TextStyle(
-                    fontSize: 44,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Due on March 15',
-                  style: TextStyle(color: Color(0xFF607080)),
-                ),
-              ],
-            ),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F7EF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFCBE8D7)),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2F9965),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            ),
-            onPressed: () {},
-            child: const Text(
-              'Pay Now',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-        final upcomingCard = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD8E2EC)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Row(
             children: [
               const Expanded(
-                child: Text(
-                  'UPCOMING INVOICE',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: Color(0xFF3C4A5B),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CURRENT BALANCE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Color(0xFF2F7D64),
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      r'$325.00',
+                      style: TextStyle(
+                        fontSize: 44,
+                        height: 1,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Due on March 15',
+                      style: TextStyle(color: Color(0xFF607080)),
+                    ),
+                  ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2F9965),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8E7B5),
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                onPressed: () {},
                 child: const Text(
-                  'Pending',
-                  style: TextStyle(
-                    color: Color(0xFF9B6A21),
-                    fontWeight: FontWeight.w700,
+                  'Pay Now',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        );
+        final upcomingCard = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD8E2EC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'UPCOMING INVOICE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Color(0xFF3C4A5B),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8E7B5),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'Pending',
+                      style: TextStyle(
+                        color: Color(0xFF9B6A21),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F3DF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Weekly Tuition',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF344155),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Invoice #1048 · March 10 -\nMarch 14',
+                            style: TextStyle(color: Color(0xFF607080)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      r'$325.00',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 28,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        final paymentMethodsCard = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD8E2EC)),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PAYMENT METHODS',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                  color: Color(0xFF3C4A5B),
+                ),
+              ),
+              SizedBox(height: 12),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFDCE8F4),
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text(
+                    'Visa ending in 4242 · Default\npayment method',
+                    style: TextStyle(
+                      color: Color(0xFF455569),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8F3DF),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Weekly Tuition',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF344155),
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Invoice #1048 · March 10 -\nMarch 14',
-                        style: TextStyle(color: Color(0xFF607080)),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  r'$325.00',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 28,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-        final paymentMethodsCard = Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD8E2EC)),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'PAYMENT METHODS',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-              color: Color(0xFF3C4A5B),
-            ),
-          ),
-          SizedBox(height: 12),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Color(0xFFDCE8F4),
-              borderRadius: BorderRadius.all(Radius.circular(16)),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(14),
-              child: Text(
-                'Visa ending in 4242 · Default\npayment method',
-                style: TextStyle(
-                  color: Color(0xFF455569),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+        );
         final isWide = MediaQuery.sizeOf(context).width >= 900;
 
         if (!isWide) {
@@ -4832,6 +6761,39 @@ class ParentRepository {
     return _db.collection('tenants').doc(tenantId).snapshots();
   }
 
+  Future<Map<String, dynamic>> findParentDocByIdentity({
+    required String tenantId,
+    required String authUid,
+    required String email,
+  }) async {
+    try {
+      final byUid = await _db
+          .collection('tenants')
+          .doc(tenantId)
+          .collection('parents')
+          .where('authUid', isEqualTo: authUid)
+          .limit(1)
+          .get();
+      if (byUid.docs.isNotEmpty) {
+        return byUid.docs.first.data();
+      }
+
+      if (email.trim().isNotEmpty) {
+        final byEmail = await _db
+            .collection('tenants')
+            .doc(tenantId)
+            .collection('parents')
+            .where('email', isEqualTo: email.trim().toLowerCase())
+            .limit(1)
+            .get();
+        if (byEmail.docs.isNotEmpty) {
+          return byEmail.docs.first.data();
+        }
+      }
+    } catch (_) {}
+    return const <String, dynamic>{};
+  }
+
   Future<Map<String, dynamic>> loadParentDoc(ParentContext contextData) async {
     try {
       final doc = await _db
@@ -4932,6 +6894,34 @@ class ParentRepository {
           'updatedByUid': uid,
           'sourceApp': 'parent_daycare_app',
         }, SetOptions(merge: true));
+  }
+
+  Future<void> updateChildDateOfBirth({
+    required ParentContext contextData,
+    required String uid,
+    required String childId,
+    required DateTime dateOfBirth,
+  }) async {
+    try {
+      await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('children')
+          .doc(childId)
+          .set({
+            'dateOfBirth': Timestamp.fromDate(dateOfBirth),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedByUid': uid,
+            'sourceApp': 'parent_daycare_app',
+          }, SetOptions(merge: true));
+    } catch (_) {
+      await _updateChildDateOfBirthViaRest(
+        tenantId: contextData.tenantId,
+        childId: childId,
+        uid: uid,
+        dateOfBirth: dateOfBirth,
+      );
+    }
   }
 
   Future<void> saveParentContractSignature({
@@ -5067,6 +7057,71 @@ class ParentRepository {
     }
   }
 
+  Future<void> saveChildEnrollmentDocument({
+    required ParentContext contextData,
+    required String uid,
+    required ChildRecordLite child,
+    required Map<String, dynamic> parentData,
+    required String daycareName,
+    required String documentLanguage,
+    required String childDateOfBirthText,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+    required Map<String, dynamic> formData,
+  }) async {
+    final enrollmentRef = _db
+        .collection('tenants')
+        .doc(contextData.tenantId)
+        .collection('children')
+        .doc(child.id)
+        .collection('enrollment_forms')
+        .doc(contextData.parentId);
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final payload = {
+      'parentId': contextData.parentId,
+      'parentAuthUid': uid,
+      'parentName': parentName,
+      'parentEmail': (parentData['email'] ?? '').toString(),
+      'parentPhone': (parentData['phone'] ?? '').toString(),
+      'childId': child.id,
+      'childName': child.fullName,
+      'childDateOfBirthText': childDateOfBirthText,
+      'daycareName': daycareName,
+      'documentLanguage': documentLanguage,
+      'documentCompleted': true,
+      'formType': 'child_enrollment_emergency_contact',
+      'signedName': signedName,
+      'signaturePoints': signaturePoints,
+      'signatureCaptured': signatureCaptured,
+      'signedAt': FieldValue.serverTimestamp(),
+      'sourceApp': 'parent_daycare_app',
+      'updatedByUid': uid,
+      ...formData,
+    };
+
+    try {
+      await enrollmentRef.set(payload, SetOptions(merge: true));
+    } catch (_) {
+      await _saveChildEnrollmentViaRest(
+        tenantId: contextData.tenantId,
+        parentId: contextData.parentId,
+        uid: uid,
+        child: child,
+        parentData: parentData,
+        daycareName: daycareName,
+        documentLanguage: documentLanguage,
+        childDateOfBirthText: childDateOfBirthText,
+        signedName: signedName,
+        signaturePoints: signaturePoints,
+        signatureCaptured: signatureCaptured,
+        formData: formData,
+      );
+    }
+  }
+
   Future<UploadedParentFormFile> uploadParentFormPdf({
     required String tenantId,
     required String parentId,
@@ -5153,6 +7208,31 @@ class ParentRepository {
       }
     } catch (_) {}
     return _loadPhotoPermissionViaRest(
+      tenantId: contextData.tenantId,
+      childId: childId,
+      parentId: contextData.parentId,
+    );
+  }
+
+  Future<Map<String, dynamic>> loadChildEnrollmentDocument({
+    required ParentContext contextData,
+    required String childId,
+  }) async {
+    try {
+      final doc = await _db
+          .collection('tenants')
+          .doc(contextData.tenantId)
+          .collection('children')
+          .doc(childId)
+          .collection('enrollment_forms')
+          .doc(contextData.parentId)
+          .get();
+      final data = doc.data();
+      if (data != null && data.isNotEmpty) {
+        return data;
+      }
+    } catch (_) {}
+    return _loadChildEnrollmentViaRest(
       tenantId: contextData.tenantId,
       childId: childId,
       parentId: contextData.parentId,
@@ -5416,6 +7496,50 @@ class ParentRepository {
     }
   }
 
+  Future<void> _updateChildDateOfBirthViaRest({
+    required String tenantId,
+    required String childId,
+    required String uid,
+    required DateTime dateOfBirth,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Missing auth token');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/$childId'
+      '?updateMask.fieldPaths=dateOfBirth'
+      '&updateMask.fieldPaths=updatedAt'
+      '&updateMask.fieldPaths=updatedByUid'
+      '&updateMask.fieldPaths=sourceApp',
+    );
+    final body = jsonEncode({
+      'fields': {
+        'dateOfBirth': {
+          'timestampValue': dateOfBirth.toUtc().toIso8601String(),
+        },
+        'updatedAt': {'timestampValue': now},
+        'updatedByUid': {'stringValue': uid},
+        'sourceApp': {'stringValue': 'parent_daycare_app'},
+      },
+    });
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('DOB update failed (${response.statusCode})');
+    }
+  }
+
   Future<Map<String, dynamic>> _loadParentDocViaRest(
     ParentContext contextData,
   ) async {
@@ -5480,6 +7604,34 @@ class ParentRepository {
 
     final uri = Uri.parse(
       'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/$childId/photo_permissions/$parentId',
+    );
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) {
+      return const <String, dynamic>{};
+    }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    final fields = (payload['fields'] as Map<String, dynamic>?) ?? const {};
+    return _decodeFirestoreMap(fields);
+  }
+
+  Future<Map<String, dynamic>> _loadChildEnrollmentViaRest({
+    required String tenantId,
+    required String childId,
+    required String parentId,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const <String, dynamic>{};
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      return const <String, dynamic>{};
+    }
+
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/$childId/enrollment_forms/$parentId',
     );
     final response = await http.get(
       uri,
@@ -5750,6 +7902,76 @@ class ParentRepository {
       throw Exception(
         'Child permission update failed (${childResponse.statusCode})',
       );
+    }
+  }
+
+  Future<void> _saveChildEnrollmentViaRest({
+    required String tenantId,
+    required String parentId,
+    required String uid,
+    required ChildRecordLite child,
+    required Map<String, dynamic> parentData,
+    required String daycareName,
+    required String documentLanguage,
+    required String childDateOfBirthText,
+    required String signedName,
+    required List<String> signaturePoints,
+    required bool signatureCaptured,
+    required Map<String, dynamic> formData,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('No authenticated user');
+    final idToken = await user.getIdToken(true);
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Missing auth token');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final parentName =
+        '${(parentData['firstName'] ?? '').toString()} ${(parentData['lastName'] ?? '').toString()}'
+            .trim();
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId/databases/(default)/documents/tenants/$tenantId/children/${child.id}/enrollment_forms/$parentId',
+    );
+    final fields = <String, dynamic>{
+      'parentId': {'stringValue': parentId},
+      'parentAuthUid': {'stringValue': uid},
+      'parentName': {'stringValue': parentName},
+      'parentEmail': {'stringValue': (parentData['email'] ?? '').toString()},
+      'parentPhone': {'stringValue': (parentData['phone'] ?? '').toString()},
+      'childId': {'stringValue': child.id},
+      'childName': {'stringValue': child.fullName},
+      'childDateOfBirthText': {'stringValue': childDateOfBirthText},
+      'daycareName': {'stringValue': daycareName},
+      'documentLanguage': {'stringValue': documentLanguage},
+      'documentCompleted': {'booleanValue': true},
+      'formType': {'stringValue': 'child_enrollment_emergency_contact'},
+      'signedName': {'stringValue': signedName},
+      'signaturePoints': {
+        'arrayValue': {
+          'values': signaturePoints
+              .map((point) => {'stringValue': point})
+              .toList(),
+        },
+      },
+      'signatureCaptured': {'booleanValue': signatureCaptured},
+      'signedAt': {'timestampValue': now},
+      'sourceApp': {'stringValue': 'parent_daycare_app'},
+      'updatedByUid': {'stringValue': uid},
+    };
+    formData.forEach((key, value) {
+      fields[key] = {'stringValue': value.toString()};
+    });
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'fields': fields}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Enrollment form save failed (${response.statusCode})');
     }
   }
 }
