@@ -16,7 +16,7 @@ import 'form_document_pdf.dart';
 import 'pdf_web_helper_stub.dart'
     if (dart.library.html) 'pdf_web_helper_web.dart';
 
-const _appVersion = '1.2.47+60';
+const _appVersion = '1.2.48+61';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

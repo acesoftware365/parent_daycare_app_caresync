@@ -61,22 +61,24 @@ class FormPdfBuilder {
     final isSpanish = languageCode == 'es';
     final doc = pw.Document();
     doc.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageTheme: _theme(),
-        build: (_) => _photoPermissionTemplate(
-          isSpanish: isSpanish,
-          daycareName: daycareName,
-          daycareAddress: daycareAddress,
-          daycarePhone: daycarePhone,
-          childName: childName,
-          childDateOfBirthText: childDateOfBirthText,
-          parentGuardianName: parentGuardianName,
-          internalCommunicationApproved: internalCommunicationApproved,
-          publicWebsiteApproved: publicWebsiteApproved,
-          signedName: signedName,
-          signedAt: signedAt,
-          signaturePoints: signaturePoints,
-        ),
+        build: (_) => [
+          _photoPermissionTemplate(
+            isSpanish: isSpanish,
+            daycareName: daycareName,
+            daycareAddress: daycareAddress,
+            daycarePhone: daycarePhone,
+            childName: childName,
+            childDateOfBirthText: childDateOfBirthText,
+            parentGuardianName: parentGuardianName,
+            internalCommunicationApproved: internalCommunicationApproved,
+            publicWebsiteApproved: publicWebsiteApproved,
+            signedName: signedName,
+            signedAt: signedAt,
+            signaturePoints: signaturePoints,
+          ),
+        ],
       ),
     );
     return doc.save();
@@ -140,7 +142,7 @@ class FormPdfBuilder {
   }) async {
     final doc = pw.Document();
     doc.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageTheme: _theme(),
         build: (_) => _enrollmentTemplate(
           daycareName: daycareName,
@@ -195,7 +197,6 @@ class FormPdfBuilder {
           medicationNotes: medicationNotes,
           signedName: signedName,
           signedAt: signedAt,
-          signaturePoints: signaturePoints,
         ),
       ),
     );
@@ -422,7 +423,7 @@ class FormPdfBuilder {
     );
   }
 
-  static List<pw.Widget> _enrollmentTemplate({
+  static pw.Widget _enrollmentTemplate({
     required String daycareName,
     required String dateOfApplicationText,
     required String dateOfEnrollmentText,
@@ -475,98 +476,407 @@ class FormPdfBuilder {
     required String medicationNotes,
     required String signedName,
     required DateTime? signedAt,
-    required List<String> signaturePoints,
   }) {
-    return [
-      pw.Text(
-        'CHILD ENROLLMENT FORM',
-        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-      ),
-      pw.SizedBox(height: 6),
-      _detail('Date of Application', dateOfApplicationText),
-      _detail('Date of Enrollment', dateOfEnrollmentText),
-      _detail('Last Day of Enrollment', lastDayOfEnrollmentText),
-      pw.SizedBox(height: 12),
-      _detail(
-        'Attention Provider',
-        'This information must be kept current at all times and shall be kept file for one year after the child ceases to be enrolled in the family child care home.',
-      ),
-      pw.SizedBox(height: 8),
-      _detail('Daycare Name', daycareName),
-      pw.SizedBox(height: 10),
-      _sectionHeading('CHILD INFORMATION'),
-      pw.SizedBox(height: 6),
-      _detail('Child’s Name', childName),
-      _detail('Child’s Date of Birth', childDateOfBirthText),
-      _detail('Gender', childGender),
-      _detail('Child’s Address', childStreetAddress),
-      _detail('City', childCity),
-      _detail('State', childState),
-      _detail('Zip Code', childZipCode),
-      _detail('Primary Language Spoken at Home', primaryLanguage),
-      pw.SizedBox(height: 10),
-      _sectionHeading('PARENT / GUARDIAN INFORMATION'),
-      pw.SizedBox(height: 6),
-      _detail('Parent/Guardian Name', parent1Name),
-      _detail('Address', parent1Address),
-      _detail('City', parent1City),
-      _detail('Zip Code', parent1ZipCode),
-      _detail('Home Telephone #', parent1HomePhone),
-      _detail('Cell #', parent1CellPhone),
-      _detail('Emergency Contact #', parent1EmergencyPhone),
-      _detail('e-mail Address', parent1Email),
-      _detail('Employer', parent1Employer),
-      _detail('Work #', parent1EmployerWorkPhone),
-      _detail('Employer’s Address', parent1EmployerAddress),
-      _detail('City', parent1EmployerCity),
-      _detail('Zip Code', parent1EmployerZipCode),
-      pw.SizedBox(height: 8),
-      _detail('Parent/Guardian Name', parent2Name),
-      _detail('Address', parent2Address),
-      _detail('City', parent2City),
-      _detail('Zip Code', parent2ZipCode),
-      _detail('Home Telephone #', parent2HomePhone),
-      _detail('Cell #', parent2CellPhone),
-      _detail('Emergency Contact #', parent2EmergencyPhone),
-      _detail('e-mail Address', parent2Email),
-      _detail('Employer', parent2Employer),
-      _detail('Work #', parent2EmployerWorkPhone),
-      _detail('Employer’s Address', parent2EmployerAddress),
-      _detail('City', parent2EmployerCity),
-      _detail('Zip Code', parent2EmployerZipCode),
-      pw.SizedBox(height: 10),
-      _sectionHeading('EMERGENCY CONTACTS & AUTHORIZED PICK-UP'),
-      pw.SizedBox(height: 4),
-      pw.SizedBox(height: 6),
-      _detail('Contact 1 Name', contact1Name),
-      _detail('Relationship', contact1Relationship),
-      _detail('Phone Number', contact1Phone),
-      pw.SizedBox(height: 6),
-      _detail('Contact 2 Name', contact2Name),
-      _detail('Relationship', contact2Relationship),
-      _detail('Phone Number', contact2Phone),
-      pw.SizedBox(height: 6),
-      _detail('Not Allowed Pickup', restrictedPickupNotes),
-      pw.SizedBox(height: 10),
-      _sectionHeading('MEDICAL INFORMATION'),
-      pw.SizedBox(height: 6),
-      _detail('Pediatrician’s Name', pediatricianName),
-      _detail('Phone', pediatricianPhone),
-      _detail('Preferred Hospital', preferredHospital),
-      _detail('Allergies', allergyNotes),
-      _detail('Daily medications or chronic conditions', medicationNotes),
-      pw.SizedBox(height: 8),
-      _bodyCard(
-        'Signature of Parent or Guardian: ${signedName.trim().isEmpty ? '-' : signedName}\nDate: ${_formatDate(signedAt)}',
-      ),
-      pw.SizedBox(height: 10),
-      pw.Text(
-        'Saved Signature',
-        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-      ),
-      pw.SizedBox(height: 6),
-      _signatureSection(signaturePoints),
-    ];
+    pw.Widget lineField(
+      String label,
+      String value, {
+      double labelWidth = 110,
+      double minWidth = 80,
+    }) {
+      return pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.end,
+        children: [
+          pw.SizedBox(
+            width: labelWidth,
+            child: pw.Text(
+              label,
+              style: pw.TextStyle(
+                fontSize: 8.3,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Expanded(
+            child: pw.Container(
+              constraints: pw.BoxConstraints(minWidth: minWidth),
+              padding: const pw.EdgeInsets.only(bottom: 1),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(width: 0.8, color: PdfColors.black),
+                ),
+              ),
+              child: pw.Text(
+                value.trim(),
+                style: const pw.TextStyle(fontSize: 8.1),
+                maxLines: 1,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    pw.Widget smallGap() => pw.SizedBox(height: 5);
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Center(
+          child: pw.Text(
+            'CHILD ENROLLMENT FORM',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField(
+                'Date of Application:',
+                dateOfApplicationText,
+                labelWidth: 88,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Date of Enrollment:',
+                dateOfEnrollmentText,
+                labelWidth: 90,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Last Day of Enrollment:',
+                lastDayOfEnrollmentText,
+                labelWidth: 106,
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 12),
+        pw.RichText(
+          text: pw.TextSpan(
+            style: const pw.TextStyle(fontSize: 8.3, color: PdfColors.black),
+            children: [
+              pw.TextSpan(
+                text: 'Attention Provider: ',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              const pw.TextSpan(
+                text:
+                    'This information must be kept current at all times and shall be kept file for one year after the child ceases to be enrolled in the family child care home.',
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 14),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Expanded(
+              flex: 5,
+              child: lineField("Child’s Name:", childName, labelWidth: 72),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              flex: 3,
+              child: lineField(
+                "Child’s Date of Birth:",
+                childDateOfBirthText,
+                labelWidth: 92,
+              ),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Expanded(
+              flex: 5,
+              child: lineField(
+                "Child’s Address:",
+                childStreetAddress,
+                labelWidth: 76,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              flex: 2,
+              child: lineField('City:', childCity, labelWidth: 24),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              flex: 2,
+              child: lineField('Zip Code', childZipCode, labelWidth: 44),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        lineField('Parent/Guardian Name:', parent1Name, labelWidth: 102),
+        smallGap(),
+        lineField('Address:', parent1Address, labelWidth: 42),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(child: lineField('City:', parent1City, labelWidth: 24)),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('Zip Code:', parent1ZipCode, labelWidth: 46),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField(
+                'Home Telephone #:',
+                parent1HomePhone,
+                labelWidth: 82,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('Cell #:', parent1CellPhone, labelWidth: 34),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField(
+                'Emergency Contact #',
+                parent1EmergencyPhone,
+                labelWidth: 86,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('e-mail Address:', parent1Email, labelWidth: 66),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField('Employer:', parent1Employer, labelWidth: 48),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Work #:',
+                parent1EmployerWorkPhone,
+                labelWidth: 38,
+              ),
+            ),
+          ],
+        ),
+        smallGap(),
+        lineField(
+          'Employer’s Address:',
+          parent1EmployerAddress,
+          labelWidth: 96,
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField('City:', parent1EmployerCity, labelWidth: 24),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Zip Code',
+                parent1EmployerZipCode,
+                labelWidth: 44,
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 10),
+        lineField('Parent/Guardian Name:', parent2Name, labelWidth: 102),
+        smallGap(),
+        lineField('Address:', parent2Address, labelWidth: 42),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(child: lineField('City:', parent2City, labelWidth: 24)),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('Zip Code:', parent2ZipCode, labelWidth: 46),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField(
+                'Home Telephone #:',
+                parent2HomePhone,
+                labelWidth: 82,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('Cell #:', parent2CellPhone, labelWidth: 34),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField(
+                'Emergency Contact #',
+                parent2EmergencyPhone,
+                labelWidth: 86,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField('e-mail Address:', parent2Email, labelWidth: 66),
+            ),
+          ],
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField('Employer:', parent2Employer, labelWidth: 48),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Work #:',
+                parent2EmployerWorkPhone,
+                labelWidth: 38,
+              ),
+            ),
+          ],
+        ),
+        smallGap(),
+        lineField(
+          'Employer’s Address:',
+          parent2EmployerAddress,
+          labelWidth: 96,
+        ),
+        smallGap(),
+        pw.Row(
+          children: [
+            pw.Expanded(
+              child: lineField('City:', parent2EmployerCity, labelWidth: 24),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              child: lineField(
+                'Zip Code',
+                parent2EmployerZipCode,
+                labelWidth: 44,
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 16),
+        pw.Container(width: double.infinity, height: 1, color: PdfColors.black),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          "My Child’s Weekly Child Care Schedule:",
+          style: pw.TextStyle(fontSize: 8.6, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Day(s)',
+                    style: pw.TextStyle(
+                      fontSize: 8.4,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  ...const [
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                    'Saturday',
+                    'Sunday',
+                  ].map(
+                    (day) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 4),
+                      child: pw.Text(
+                        '$day ____________',
+                        style: const pw.TextStyle(fontSize: 8.1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 32),
+            pw.Expanded(
+              flex: 2,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'Hours',
+                    style: pw.TextStyle(
+                      fontSize: 8.4,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  ...List<pw.Widget>.generate(
+                    7,
+                    (_) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 4),
+                      child: pw.Text(
+                        '______________________________',
+                        style: const pw.TextStyle(fontSize: 8.1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.Spacer(),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            pw.Expanded(
+              flex: 5,
+              child: lineField(
+                'Signature of Parent or Guardian:',
+                signedName,
+                labelWidth: 138,
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              flex: 2,
+              child: lineField(
+                'Date:',
+                _formatDateOnlyShort(signedAt),
+                labelWidth: 26,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   static pw.Widget _sectionHeading(String text) {
@@ -664,6 +974,11 @@ class FormPdfBuilder {
   static String _formatDate(DateTime? value) {
     if (value == null) return '-';
     return DateFormat('M/d/y h:mm a').format(value);
+  }
+
+  static String _formatDateOnlyShort(DateTime? value) {
+    if (value == null) return '';
+    return DateFormat('M/d/y').format(value);
   }
 
   static String? _signatureSvg(List<String> encodedPoints) {
